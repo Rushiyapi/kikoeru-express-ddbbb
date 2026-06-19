@@ -20,6 +20,7 @@ const createSchema = () => knex.schema
 
     table.integer('dl_count'); // INTEGER type [total sales count]
     table.text('dl_count_items'); // TEXT type [sales count by language edition]
+    table.text('dlsite_languages'); // TEXT type [DLsite supported languages]
     table.integer('price'); // INTEGER 类型 [价格]
     table.integer('review_count'); // INTEGER 类型 [评论数量]
     table.integer('rate_count'); // INTEGER 类型 [评价数量]
@@ -88,6 +89,36 @@ const createSchema = () => knex.schema
     table.foreign('user_name').references('name').inTable('t_user').onDelete('CASCADE'); // FOREIGN KEY 
     table.foreign('work_id').references('id').inTable('t_work').onDelete('CASCADE'); // FOREIGN KEY 
     table.primary(['user_name', 'work_id']); // PRIMARY KEY
+  })
+  .createTable('t_external_work_review', (table) => {
+    table.string('source').notNullable();
+    table.string('source_review_id').notNullable();
+    table.integer('work_id').notNullable();
+    table.string('source_work_id');
+    table.string('language');
+    table.string('author');
+    table.integer('rating');
+    table.text('title');
+    table.text('body').notNullable();
+    table.string('posted_at');
+    table.string('source_url');
+    table.text('metadata');
+    table.timestamps(true, true);
+    table.foreign('work_id').references('id').inTable('t_work').onUpdate('CASCADE').onDelete('CASCADE');
+    table.primary(['source', 'source_review_id']);
+    table.index(['work_id', 'source'], 't_external_work_review_work_source_index');
+  })
+  .createTable('t_external_work_review_translation', (table) => {
+    table.string('source').notNullable();
+    table.string('source_review_id').notNullable();
+    table.string('target_language').notNullable();
+    table.text('translated_title');
+    table.text('translated_body');
+    table.string('provider');
+    table.string('model');
+    table.boolean('confirmed').notNullable().defaultTo(false);
+    table.timestamps(true, true);
+    table.primary(['source', 'source_review_id', 'target_language']);
   })
   .createTable('t_play_histroy', (table) => {
     table.string('user_name').notNullable();
@@ -170,6 +201,7 @@ const createSchema = () => knex.schema
           t_work.release,
           t_work.dl_count,
           t_work.dl_count_items,
+          t_work.dlsite_languages,
           t_work.price,
           t_work.review_count,
           t_work.rate_count,

@@ -39,6 +39,34 @@ function Open-KikoeruUi($Url) {
   Start-Process $Url | Out-Null
 }
 
+function Get-LanUrls($ListenPort) {
+  try {
+    $addresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
+      Where-Object {
+        $_.IPAddress -notlike '127.*' -and
+        $_.IPAddress -notlike '169.254.*' -and
+        $_.IPAddress -ne '0.0.0.0'
+      } |
+      Select-Object -ExpandProperty IPAddress -Unique)
+  } catch {
+    return @()
+  }
+
+  return @($addresses | ForEach-Object { 'http://{0}:{1}/' -f $_, $ListenPort })
+}
+
+function Write-LanAccessInfo($ListenPort) {
+  $urls = @(Get-LanUrls $ListenPort)
+  if ($urls.Count -eq 0) {
+    Write-Step "LAN URL was not detected. Check your Wi-Fi IPv4 address and use http://<server-ip>:$ListenPort/"
+    return
+  }
+
+  foreach ($url in $urls) {
+    Write-Step "LAN URL for phone/tablet: $url"
+  }
+}
+
 function Ensure-Directory($Path) {
   if (!(Test-Path $Path)) {
     New-Item -ItemType Directory -Force -Path $Path | Out-Null
@@ -175,6 +203,7 @@ function Start-Kikoeru {
   if ($listeners.Count -gt 0) {
     $pids = ($listeners | Select-Object -ExpandProperty OwningProcess -Unique) -join ', '
     Write-Step "Port $Port is already listening. PID: $pids"
+    Write-LanAccessInfo $Port
     Open-KikoeruUi $baseUrl
     return
   }
@@ -185,6 +214,7 @@ function Start-Kikoeru {
 
   if ($Foreground) {
     Write-Step "Start in foreground: $baseUrl"
+    Write-LanAccessInfo $Port
     & $NodeExe 'app.js'
     return
   }
@@ -216,6 +246,7 @@ function Start-Kikoeru {
   }
 
   Write-Step "Started successfully. PID: $($process.Id)"
+  Write-LanAccessInfo $Port
   Open-KikoeruUi $baseUrl
 }
 

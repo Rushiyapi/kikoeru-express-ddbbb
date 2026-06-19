@@ -31,6 +31,194 @@ const normalizeDlCountItems = items => (items || []).map(item => ({
   dl_count: toNumber(item.dl_count)
 })).filter(item => item.workno || item.label);
 
+const normalizeWorkno = workno => {
+  const id = String(workno || '').replace(/^RJ/i, '');
+  return id ? `RJ${id}` : '';
+};
+
+const DLSITE_LANGUAGE_LABELS = {
+  JPN: '\u65e5\u672c\u8a9e',
+  CHI: '\u4e2d\u6587',
+  CHI_HANS: '\u7b80\u4f53\u4e2d\u6587',
+  CHI_HANT: '\u7e41\u9ad4\u4e2d\u6587',
+  ENG: '\u82f1\u8a9e',
+  KO_KR: '\u97d3\u56fd\u8a9e',
+  THA: '\u30bf\u30a4\u8a9e',
+  SPA: '\u30b9\u30da\u30a4\u30f3\u8a9e',
+  GER: '\u30c9\u30a4\u30c4\u8a9e',
+  FRE: '\u30d5\u30e9\u30f3\u30b9\u8a9e',
+  ITA: '\u30a4\u30bf\u30ea\u30a2\u8a9e',
+  POR: '\u30dd\u30eb\u30c8\u30ac\u30eb\u8a9e',
+  IND: '\u30a4\u30f3\u30c9\u30cd\u30b7\u30a2\u8a9e',
+  VIE: '\u30d9\u30c8\u30ca\u30e0\u8a9e'
+};
+
+const normalizeDlsiteLanguageCode = value => String(value || '')
+  .trim()
+  .toUpperCase()
+  .replace(/-/g, '_');
+
+const normalizeDlsiteLanguageItem = item => {
+  const lang = normalizeDlsiteLanguageCode(item && item.lang);
+  if (!lang || !DLSITE_LANGUAGE_LABELS[lang]) return null;
+
+  const normalized = {
+    lang,
+    label: item.label || DLSITE_LANGUAGE_LABELS[lang],
+    source: item.source || 'same_work'
+  };
+  const workno = normalizeWorkno(item.workno);
+  if (workno) normalized.workno = workno;
+  return normalized;
+};
+
+const mergeDlsiteLanguages = (...lists) => {
+  const merged = [];
+  const seen = new Set();
+
+  lists.forEach((list) => {
+    (list || []).forEach((item) => {
+      const normalized = normalizeDlsiteLanguageItem(item);
+      if (!normalized) return;
+      const key = [
+        normalized.lang,
+        normalized.workno || '',
+        normalized.source || ''
+      ].join(':');
+      if (seen.has(key)) return;
+      seen.add(key);
+      merged.push(normalized);
+    });
+  });
+
+  const hasSpecificChinese = merged.some(item => item.lang === 'CHI_HANS' || item.lang === 'CHI_HANT');
+  return hasSpecificChinese
+    ? merged.filter(item => item.lang !== 'CHI')
+    : merged;
+};
+
+const parseDlsiteLanguageOptions = options => mergeDlsiteLanguages(
+  String(options || '')
+    .split('#')
+    .map(code => ({
+      lang: code,
+      source: 'same_work'
+    }))
+);
+
+const normalizeDlsiteLanguageEditions = editions => mergeDlsiteLanguages(
+  (editions || []).map(edition => ({
+    workno: edition.workno,
+    lang: edition.lang,
+    label: edition.display_label || edition.label,
+    source: 'language_edition'
+  }))
+);
+
+const extractSupportedLanguagesFromDLsitePage = $ => {
+  const candidates = [];
+  const headerPattern = /(\u5bfe\u5fdc\u8a00\u8a9e|\u5bfe\u5fdc\u8a9e\u8a00|\u652f\u6301\u7684\u8bed\u8a00|Supported languages)/i;
+
+  $('#work_outline tr').each((i, tr) => {
+    const row = $(tr);
+    const headerText = row.children('th').text().trim();
+    if (!headerPattern.test(headerText)) return;
+
+    row.children('td').find('a, span').each((j, element) => {
+      const el = $(element);
+      const text = [
+        el.attr('class'),
+        el.attr('href'),
+        el.attr('title'),
+        el.text()
+      ].filter(Boolean).join(' ');
+      const match = text.match(/(?:icon_|options\/)(CHI_HANS|CHI_HANT|KO_KR|JPN|ENG|THA|SPA|GER|FRE|ITA|POR|IND|VIE|CHI)\b/i);
+      if (match) {
+        candidates.push({
+          lang: match[1],
+          label: el.attr('title') || el.text().trim(),
+          source: 'same_work'
+        });
+      }
+    });
+  });
+
+  return mergeDlsiteLanguages(candidates);
+};
+
+const normalizeDlsiteLanguagesFromProductJson = data => mergeDlsiteLanguages(
+  parseDlsiteLanguageOptions(data && data.options),
+  normalizeDlsiteLanguageEditions(data && data.language_editions)
+);
+
+const normalizeRateCountDetail = detail => {
+  const buckets = [1, 2, 3, 4, 5].map(reviewPoint => ({
+    review_point: reviewPoint,
+    count: 0,
+    ratio: 0
+  }));
+
+  (detail || []).forEach((item) => {
+    const reviewPoint = toNumber(item.review_point);
+    if (reviewPoint >= 1 && reviewPoint <= 5) {
+      buckets[reviewPoint - 1].count = toNumber(item.count);
+    }
+  });
+
+  return buckets;
+};
+
+const rateCountDetailTotal = detail => normalizeRateCountDetail(detail)
+  .reduce((sum, item) => sum + item.count, 0);
+
+const rateCountDetailSignature = detail => normalizeRateCountDetail(detail)
+  .map(item => item.count)
+  .join(',');
+
+const aggregateDynamicEditionCounts = (worknos, dynamicMap) => {
+  const uniqueWorknos = unique((worknos || []).map(normalizeWorkno).filter(Boolean));
+  const rateDetailSignatures = new Set();
+  const rateCountDetail = normalizeRateCountDetail([]);
+
+  let reviewCount = 0;
+  let ratePointTotal = 0;
+  let rateCount = 0;
+
+  uniqueWorknos.forEach((workno) => {
+    const data = dynamicMap[workno];
+    if (!data) return;
+
+    reviewCount += toNumber(data.review_count);
+
+    const detail = normalizeRateCountDetail(data.rate_count_detail);
+    const detailTotal = rateCountDetailTotal(detail);
+    if (!detailTotal) return;
+
+    const signature = rateCountDetailSignature(detail);
+    if (rateDetailSignatures.has(signature)) return;
+    rateDetailSignatures.add(signature);
+
+    detail.forEach((item, index) => {
+      rateCountDetail[index].count += item.count;
+      ratePointTotal += item.review_point * item.count;
+      rateCount += item.count;
+    });
+  });
+
+  if (rateCount) {
+    rateCountDetail.forEach((item) => {
+      item.ratio = Math.floor(item.count * 100 / rateCount);
+    });
+  }
+
+  return {
+    review_count: reviewCount,
+    rate_count: rateCount,
+    rate_average_2dp: rateCount ? Number((ratePointTotal / rateCount).toFixed(2)) : 0.0,
+    rate_count_detail: rateCountDetail
+  };
+};
+
 const requestDynamicWorkMap = rjcodes => {
   const productIds = rjcodes.map(rjcode => `RJ${rjcode}`).join(',');
   const url = `https://www.dlsite.com/maniax-touch/product/info/ajax?product_id=${productIds}`;
@@ -46,7 +234,8 @@ const scrapeLanguageEditionsFromDLsiteJson = (rjcode, language = 'zh-cn') => {
     .then(response => response.data && response.data[0])
     .then(data => ({
       editions: data && data.language_editions ? data.language_editions : [],
-      translationInfo: data && data.translation_info ? data.translation_info : {}
+      translationInfo: data && data.translation_info ? data.translation_info : {},
+      dlsiteLanguages: normalizeDlsiteLanguagesFromProductJson(data)
     }));
 };
 
@@ -71,16 +260,24 @@ const applyRatingFallback = (work, data) => {
 const enrichDynamicMetadataWithLanguageEditions = async (work, rjcode, data) => {
   const needsLanguageCounts = !work.dl_count_items.length;
   const needsRatingFallback = !work.rate_average_2dp || !work.rate_count;
-  if (!needsLanguageCounts && !needsRatingFallback) return work;
 
   const editionInfo = await scrapeLanguageEditionsFromDLsiteJson(rjcode);
   const editions = editionInfo.editions || [];
-  if (!editions.length) return work;
+  const currentWorkno = normalizeWorkno(rjcode);
+  work.dlsite_languages = mergeDlsiteLanguages(
+    work.dlsite_languages,
+    editionInfo.dlsiteLanguages
+  );
+  if (!editions.length) {
+    if (needsRatingFallback) applyRatingFallback(work, data);
+    return work;
+  }
 
   const editionRjcodes = editions
     .map(edition => String(edition.workno || '').replace(/^RJ/i, ''))
     .filter(Boolean);
   const dynamicMap = await requestDynamicWorkMap(editionRjcodes);
+  if (currentWorkno && data) dynamicMap[currentWorkno] = data;
 
   if (needsLanguageCounts) {
     work.dl_count_items = editions.map(edition => {
@@ -95,6 +292,17 @@ const enrichDynamicMetadataWithLanguageEditions = async (work, rjcode, data) => 
 
     const total = work.dl_count_items.reduce((sum, item) => sum + toNumber(item.dl_count), 0);
     if (total) work.dl_count = total;
+  }
+
+  const aggregate = aggregateDynamicEditionCounts(
+    editions.map(edition => edition.workno).concat(currentWorkno),
+    dynamicMap
+  );
+  if (aggregate.review_count) work.review_count = aggregate.review_count;
+  if (aggregate.rate_count) {
+    work.rate_count = aggregate.rate_count;
+    work.rate_average_2dp = aggregate.rate_average_2dp;
+    work.rate_count_detail = aggregate.rate_count_detail;
   }
 
   const originalWorkno = editionInfo.translationInfo && editionInfo.translationInfo.original_workno;
@@ -256,6 +464,7 @@ const scrapeStaticWorkMetadataFromDLsite = (id, language) => new Promise((resolv
     .then((data) => { // 解析
       // 转换成 jQuery 对象
       const $ = cheerio.load(data);
+      work.dlsite_languages = extractSupportedLanguagesFromDLsitePage($);
 
       // 标题
       work.title = $('meta[property="og:title"]').attr('content');
@@ -287,7 +496,7 @@ const scrapeStaticWorkMetadataFromDLsite = (id, language) => new Promise((resolv
       // 贩卖日 (YYYY-MM-DD)
       const release = workOutline.children('tbody').children('tr').children('th')
         .filter(function() {
-          return $(this).text() === RELEASE;
+          return [RELEASE, '发售日', '贩卖日', '販売日', '販賣日'].includes($(this).text().trim());
         }).parent().children('td').text().replace(/[^0-9]/ig,'');
       work.release = (release.length >= 8)
         ? `${release.slice(0, 4)}-${release.slice(4, 6)}-${release.slice(6, 8)}`
@@ -388,6 +597,7 @@ const scrapeStaticWorkMetadataFromDLsiteJson = (id, language) => new Promise((re
     .then(response => response.data)
     .then((jsonObj) => { // 解析
       const data = jsonObj[0];
+      work.dlsite_languages = normalizeDlsiteLanguagesFromProductJson(data);
 
       // 标题
       work.title = data.product_name;
@@ -624,4 +834,9 @@ module.exports = {
   extractCoverIdsFromDLsitePage,
   extractRJIds,
   isDLsiteAdultAgeRating,
+  aggregateDynamicEditionCounts,
+  extractSupportedLanguagesFromDLsitePage,
+  mergeDlsiteLanguages,
+  normalizeDlsiteLanguagesFromProductJson,
+  parseDlsiteLanguageOptions,
 };

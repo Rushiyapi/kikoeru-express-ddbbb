@@ -208,6 +208,7 @@ function normalizeMetadataShape(work) {
   work.tags = work.tags || [];
   work.vas = work.vas || [];
   work.dl_count_items = work.dl_count_items || [];
+  work.dlsite_languages = work.dlsite_languages || [];
   work.rate_count_detail = work.rate_count_detail || [];
   return work;
 }
@@ -230,7 +231,8 @@ function mergeMissingMetadata(base, supplemental) {
     'rate_average_2dp',
     'rate_count_detail',
     'rank',
-    'dl_count_items'
+    'dl_count_items',
+    'dlsite_languages'
   ].forEach((key) => {
     if (isMissingMetadataValue(base[key]) && !isMissingMetadataValue(supplemental[key])) {
       base[key] = supplemental[key];

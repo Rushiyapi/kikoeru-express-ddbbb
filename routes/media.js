@@ -11,6 +11,59 @@ const { joinFragments } = require('./utils/url')
 const { isValidRequest } = require('./utils/validate')
 const jimp = require("jimp")
 
+const supportedLyricExtensions = [".lrc", ".srt", ".vtt"];
+
+function normalizeFileNameForMatch(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .replace(/\.[^.]+$/, '')
+    .toLowerCase()
+    .replace(/[【】\[\]（）(){}｛｝「」『』_＿\-\s.・~～]+/g, '');
+}
+
+function getTrackPrefix(value) {
+  const stem = String(value || '').normalize('NFKC').replace(/\.[^.]+$/, '').trim();
+  const match = stem.match(/^(?:track|tr|part|chapter|scene|voice|音声|トラック|第)?\s*0*(\d{1,3})(?:\D|$)/i);
+  return match ? String(Number(match[1])) : '';
+}
+
+function scoreLyricCandidate(trackTitle, lyricTitle) {
+  const audioStem = normalizeFileNameForMatch(trackTitle);
+  const lyricStem = normalizeFileNameForMatch(lyricTitle);
+  if (!audioStem || !lyricStem) return -1;
+  if (lyricStem === audioStem) return 100;
+  if (lyricStem === normalizeFileNameForMatch(trackTitle + path.extname(lyricTitle))) return 95;
+
+  const audioPrefix = getTrackPrefix(trackTitle);
+  const lyricPrefix = getTrackPrefix(lyricTitle);
+  if (audioPrefix && lyricPrefix) {
+    return audioPrefix === lyricPrefix ? 80 : -1;
+  }
+
+  if (lyricStem.length >= 4 && audioStem.indexOf(lyricStem) === 0) return 70;
+  if (audioStem.length >= 4 && lyricStem.indexOf(audioStem) === 0) return 65;
+  return -1;
+}
+
+function findBestLyricTrack(track, tracks) {
+  const subtitleToFind = track.subtitle || null;
+  const candidates = tracks
+    .filter(trackItem => {
+      return trackItem
+        && (trackItem.subtitle || null) === subtitleToFind
+        && supportedLyricExtensions.includes(path.extname(trackItem.title || '').toLowerCase());
+    })
+    .map(trackItem => ({
+      trackItem,
+      extension: path.extname(trackItem.title).toLowerCase(),
+      score: scoreLyricCandidate(track.title, trackItem.title)
+    }))
+    .filter(item => item.score >= 0)
+    .sort((a, b) => b.score - a.score || a.trackItem.title.localeCompare(b.trackItem.title));
+
+  return candidates[0] || null;
+}
+
 // GET (stream) a specific track from work folder
 router.get('/stream/:id/:index',
   param('id').isInt(),
@@ -129,6 +182,16 @@ router.get('/check-lrc/:id/:index',
           getTrackList(req.params.id, path.join(rootFolder.path, work.dir), JSON.parse(work.memo))
             .then((tracks) => {
               const track = tracks[req.params.index];
+              const match = findBestLyricTrack(track, tracks);
+              if (match) {
+                return res.send({
+                  result: true,
+                  message: 'found lyric file',
+                  hash: match.trackItem.hash,
+                  lyricExtension: match.extension
+                });
+              }
+              return res.send({result: false, message:'lyric file does not exist', hash: ''});
               const fileLoc = path.join(rootFolder.path, work.dir, track.subtitle || '', track.title);
               const fileDir = path.join(rootFolder.path, work.dir, track.subtitle || '');
 

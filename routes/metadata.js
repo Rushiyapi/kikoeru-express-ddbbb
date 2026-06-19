@@ -2,6 +2,7 @@ const path = require('path');
 const express = require('express');
 const router = express.Router();
 const { param, query} = require('express-validator');
+const fs = require('fs');
 const db = require('../database/db');
 const { getTrackList, toTree } = require('../filesystem/utils');
 const { config } = require('../config');
@@ -9,8 +10,248 @@ const normalize = require('./utils/normalize');
 const { isValidRequest } = require('./utils/validate');
 const { formatID, scrapeWorkMemo } = require('../filesystem/utils');
 const { scrapeWorkMetadataFromAsmrOne } = require('../scraper/asmrOne');
+const {
+  scrapeWorkReviews,
+  DLSITE_REVIEW_SOURCE,
+  DEFAULT_REVIEW_CACHE_LIMIT,
+  getReviewCacheTargetCount
+} = require('../scraper/workReviews');
 
 const PAGE_SIZE = config.pageSize || 12;
+const LOCAL_SUBTITLE_META_FILE = path.join(__dirname, '..', 'config', 'local-subtitle-meta.json');
+const LOCAL_SUBTITLE_META_LABEL = 'config/local-subtitle-meta.json';
+
+function emptyLocalSubtitleMeta() {
+  return {
+    version: 1,
+    sourceFile: LOCAL_SUBTITLE_META_LABEL,
+    exists: false,
+    status: null,
+    badges: [],
+    tracks: {}
+  };
+}
+
+function normalizeLocalMetaPath(value) {
+  return String(value || '')
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/\/+/g, '/')
+    .trim();
+}
+
+function getLocalMetaTrackMap(meta) {
+  return Object.assign({}, meta && meta.tracks || {}, meta && meta.files || {});
+}
+
+function getDisplayTitleFromMeta(entry) {
+  if (!entry || typeof entry !== 'object') return '';
+  return String(entry.displayTitle || entry.titleZh || entry.title_zh || entry.zh || '').trim();
+}
+
+function getDisplayTitleFromValue(value) {
+  if (typeof value === 'string') return value.trim();
+  return getDisplayTitleFromMeta(value);
+}
+
+function normalizeLocalSubtitleStatus(meta) {
+  const status = Object.assign(
+    {},
+    meta && meta.subtitleStatus || {},
+    meta && meta.defaultSubtitle || {},
+    meta && meta.status || {}
+  );
+
+  return Object.keys(status).length ? status : null;
+}
+
+function buildLocalSubtitleBadges(meta) {
+  const explicitBadges = Array.isArray(meta && meta.badges) ? meta.badges : [];
+  const output = explicitBadges.map((badge) => {
+    if (typeof badge === 'string') return { label: badge, description: '' };
+    return {
+      label: String(badge && badge.label || '').trim(),
+      description: String(badge && badge.description || badge.title || '').trim()
+    };
+  }).filter((badge) => badge.label);
+
+  if (output.length) return output;
+
+  const status = normalizeLocalSubtitleStatus(meta);
+  if (!status) return [];
+
+  const textSource = String(status.textSource || status.text_source || '').toLowerCase();
+  const timingSource = String(status.timingSource || status.timing_source || '').toLowerCase();
+  const reviewStatus = String(status.reviewStatus || status.review_status || '').toLowerCase();
+
+  if ((textSource === 'official_zh' || textSource === 'official_zh_cn' || textSource === 'dlsite_official_zh')
+    && timingSource === 'ai_aligned') {
+    output.push({
+      label: '官中对轴',
+      description: '官方中文文本，本地根据日文音频制作时间轴'
+    });
+  } else if (textSource === 'ai_translation') {
+    output.push({
+      label: 'AI字幕',
+      description: '中文文本由 AI 翻译或整理生成'
+    });
+  } else if (timingSource === 'ai_aligned') {
+    output.push({
+      label: 'AI对轴',
+      description: '字幕时间轴由 AI 或自动化工具对齐'
+    });
+  }
+
+  if (reviewStatus === 'checked' || reviewStatus === 'proofread') {
+    output.push({
+      label: '已校对',
+      description: '字幕已经过人工检查或校对'
+    });
+  }
+
+  return output;
+}
+
+function normalizeLocalSubtitleMetaEntry(entry, sourceFile) {
+  const parsed = entry || {};
+  const trackMap = getLocalMetaTrackMap(parsed);
+  const tracks = {};
+
+  Object.keys(trackMap).forEach((key) => {
+    const normalizedKey = normalizeLocalMetaPath(key);
+    if (!normalizedKey) return;
+    tracks[normalizedKey] = trackMap[key];
+  });
+
+  return {
+    version: Number(parsed.version || 1),
+    sourceFile: sourceFile || LOCAL_SUBTITLE_META_LABEL,
+    exists: true,
+    status: normalizeLocalSubtitleStatus(parsed),
+    badges: buildLocalSubtitleBadges(parsed),
+    preserveOriginalTitle: parsed.preserveOriginalTitle !== false,
+    separator: parsed.separator || '｜',
+    tracks,
+    workTitle: getDisplayTitleFromValue(parsed.workTitle || parsed.title) || null
+  };
+}
+
+async function readLocalSubtitleMetaStore() {
+  try {
+    const raw = await fs.promises.readFile(LOCAL_SUBTITLE_META_FILE, 'utf8');
+    return JSON.parse(raw.replace(/^\uFEFF/, ''));
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return null;
+    console.error(`Failed to read ${LOCAL_SUBTITLE_META_LABEL}:`, err);
+    throw err;
+  }
+}
+
+function getLocalSubtitleMetaKeys(work, workId) {
+  const keys = [];
+  const idText = String(workId || '').trim();
+  if (idText) {
+    keys.push(idText);
+    keys.push('RJ' + formatID(idText));
+  }
+
+  const text = [work && work.dir, work && work.title].filter(Boolean).join(' ');
+  const match = text.match(/RJ(\d{6,8})(?!\d)/i);
+  if (match) keys.push('RJ' + match[1]);
+
+  return keys.filter((key, index) => key && keys.indexOf(key) === index);
+}
+
+async function readLocalSubtitleMetaForWork(work, workId) {
+  try {
+    const store = await readLocalSubtitleMetaStore();
+    if (!store) return emptyLocalSubtitleMeta();
+
+    const works = store.works || {};
+    const keys = getLocalSubtitleMetaKeys(work, workId);
+    for (const key of keys) {
+      if (works[key]) {
+        return normalizeLocalSubtitleMetaEntry(works[key], LOCAL_SUBTITLE_META_LABEL + '#works.' + key);
+      }
+    }
+
+    return emptyLocalSubtitleMeta();
+  } catch (err) {
+    return Object.assign(emptyLocalSubtitleMeta(), {
+      error: err && err.message || String(err)
+    });
+  }
+}
+
+function composeDisplayTitle(displayTitle, originalTitle, localMeta) {
+  const display = String(displayTitle || '').trim();
+  const original = String(originalTitle || '').trim();
+  if (!display) return '';
+  if (!original || !localMeta || localMeta.preserveOriginalTitle === false || display === original) return display;
+  return display + (localMeta.separator || '｜') + original;
+}
+
+function applyLocalWorkDisplayTitle(work, localMeta) {
+  if (!work || !localMeta || !localMeta.workTitle) return work;
+  if (!work.originalTitle) {
+    work.originalTitle = work.title;
+  }
+  work.displayTitle = localMeta.workTitle;
+  work.title = localMeta.workTitle;
+  work.localTitleSource = 'local_meta';
+  return work;
+}
+
+async function applyLocalWorkDisplayTitles(works) {
+  const list = Array.isArray(works) ? works : [works];
+  await Promise.all(list.filter(Boolean).map(async (work) => {
+    const localMeta = await readLocalSubtitleMetaForWork(work, work.id);
+    applyLocalWorkDisplayTitle(work, localMeta);
+  }));
+  return works;
+}
+
+function findTrackLocalMeta(localMeta, relativePath, title) {
+  const tracks = localMeta && localMeta.tracks || {};
+  const keys = [
+    normalizeLocalMetaPath(relativePath),
+    normalizeLocalMetaPath(title)
+  ].filter(Boolean);
+
+  for (const key of keys) {
+    if (tracks[key]) return tracks[key];
+  }
+  return null;
+}
+
+function applyLocalSubtitleMetaToTree(items, localMeta, folderParts = []) {
+  const workDisplayTitle = localMeta && localMeta.workTitle;
+
+  (items || []).forEach((item) => {
+    if (!item) return;
+    if (item.type === 'folder') {
+      applyLocalSubtitleMetaToTree(item.children, localMeta, folderParts.concat(item.title));
+      return;
+    }
+
+    if (workDisplayTitle && item.workTitle) {
+      item.originalWorkTitle = item.workTitle;
+      item.workTitle = workDisplayTitle;
+    }
+
+    if (item.type !== 'audio') return;
+
+    const relativePath = folderParts.concat(item.title || '').join('/');
+    const entry = findTrackLocalMeta(localMeta, relativePath, item.title);
+    const displayTitle = getDisplayTitleFromMeta(entry);
+    if (!displayTitle) return;
+
+    item.originalTitle = item.title;
+    item.displayTitle = displayTitle;
+    item.title = composeDisplayTitle(displayTitle, item.title, localMeta);
+    item.localTitleSource = entry.titleSource || entry.title_source || 'local_meta';
+  });
+}
 
 // GET work cover image
 router.get('/cover/:id',
@@ -45,7 +286,9 @@ router.get('/work/:id',
       .then(work => {
         // work is an Array of length 1
         normalize(work);
-        res.send(work[0]);
+        return applyLocalWorkDisplayTitles(work).then(() => {
+          res.send(work[0]);
+        });
       })
       .catch(err => next(err));
   });
@@ -76,6 +319,119 @@ router.get('/work/:id/asmrone',
     }
   });
 
+async function sendWorkReviews(req, res, options = {}) {
+  if(!isValidRequest(req, res)) return;
+
+  const workId = parseInt(req.params.id);
+  const forceRefresh = Boolean(options.forceRefresh);
+
+  try {
+    await db.ensureWorkReviewTables();
+    const work = await db.knex('t_work')
+      .select('review_count')
+      .where('id', workId)
+      .first();
+    const metadataReviewCount = Number(work && work.review_count || 0);
+    const targetCachedReviewCount = getReviewCacheTargetCount(metadataReviewCount);
+    let reviewState = await db.getExternalWorkReviewState(workId);
+    let countMismatch = Number.isFinite(metadataReviewCount)
+      && targetCachedReviewCount !== reviewState.count;
+    const hasLegacyReviewCache = reviewState.items.some((item) => {
+      return !item.metadata
+        || typeof item.metadata.edition_role === 'undefined'
+        || typeof item.metadata.dlsite_best_order === 'undefined';
+    });
+
+    if (forceRefresh || (targetCachedReviewCount > 0 && reviewState.count === 0) || hasLegacyReviewCache || countMismatch) {
+      const reviews = targetCachedReviewCount > 0
+        ? await scrapeWorkReviews(workId, {
+          expectedReviewCount: metadataReviewCount,
+          limitReviews: targetCachedReviewCount
+        })
+        : [];
+      await db.replaceExternalWorkReviews(workId, reviews, [DLSITE_REVIEW_SOURCE]);
+      reviewState = await db.getExternalWorkReviewState(workId);
+      countMismatch = Number.isFinite(metadataReviewCount)
+        && targetCachedReviewCount !== reviewState.count;
+      if (reviewState.count === 0) {
+        reviewState.status = metadataReviewCount > 0 ? 'stale' : 'empty';
+      }
+    }
+
+    reviewState.metadataReviewCount = metadataReviewCount;
+    reviewState.targetCachedReviewCount = targetCachedReviewCount;
+    reviewState.cacheLimit = DEFAULT_REVIEW_CACHE_LIMIT;
+    reviewState.countMismatch = countMismatch;
+    if (countMismatch && reviewState.status === 'ready') {
+      reviewState.status = 'stale';
+      reviewState.staleReason = 'review_cache_count_mismatch';
+    }
+
+    res.send(reviewState);
+  } catch (err) {
+    try {
+      const reviewState = await db.getExternalWorkReviewState(workId);
+      const work = await db.knex('t_work')
+        .select('review_count')
+        .where('id', workId)
+        .first();
+      const metadataReviewCount = Number(work && work.review_count || 0);
+      const targetCachedReviewCount = getReviewCacheTargetCount(metadataReviewCount);
+      reviewState.metadataReviewCount = metadataReviewCount;
+      reviewState.targetCachedReviewCount = targetCachedReviewCount;
+      reviewState.cacheLimit = DEFAULT_REVIEW_CACHE_LIMIT;
+      reviewState.countMismatch = Number.isFinite(metadataReviewCount)
+        && targetCachedReviewCount !== reviewState.count;
+      if (reviewState.count > 0) {
+        reviewState.status = 'stale';
+        reviewState.error = '刷新赏析失败，显示本地缓存';
+        res.send(reviewState);
+        return;
+      }
+    } catch (cacheErr) {
+      // Fall through to the explicit error response below.
+    }
+
+    res.status(502).send({
+      count: 0,
+      status: 'error',
+      error: '获取赏析失败',
+      items: []
+    });
+  }
+}
+
+router.get('/work/:id/reviews',
+  param('id').isInt(),
+  async (req, res) => sendWorkReviews(req, res));
+
+router.post('/work/:id/reviews/refresh',
+  param('id').isInt(),
+  async (req, res) => sendWorkReviews(req, res, { forceRefresh: true }));
+
+router.get('/work/:id/subtitle-meta',
+  param('id').isInt(),
+  async (req, res, next) => {
+    if(!isValidRequest(req, res)) return;
+    const work_id = req.params.id;
+
+    try {
+      const work = await db.knex('t_work')
+        .select('root_folder', 'dir')
+        .where('id', '=', work_id)
+        .first();
+
+      if (!work) {
+        res.status(404).send({ error: 'work not found' });
+        return;
+      }
+
+      res.send(await readLocalSubtitleMetaForWork(work, work_id));
+    } catch (err) {
+      next(err);
+    }
+});
+
 // GET track list in work folder
 router.get('/tracks/:id',
   param('id').isInt(),
@@ -94,6 +450,8 @@ router.get('/tracks/:id',
         try {
           const tracks = await getTrackList(work_id, path.join(rootFolder.path, work.dir), JSON.parse(work.memo))
           const tree = toTree(tracks, work.title, work.dir, rootFolder);
+          const localSubtitleMeta = await readLocalSubtitleMetaForWork(work, work_id);
+          applyLocalSubtitleMetaToTree(tree, localSubtitleMeta);
           res.send(tree);
         } catch (err) {
           res.status(500).send({error: '获取文件列表失败，请检查文件是否存在或重新扫描清理'});
@@ -146,6 +504,7 @@ router.get('/works',
       }
 
       works = normalize(works);
+      await applyLocalWorkDisplayTitles(works);
     
       res.send({
         works,
@@ -229,6 +588,7 @@ router.get('/search', async (req, res, next) => {
     }
 
     works = normalize(works);
+    await applyLocalWorkDisplayTitles(works);
 
     res.send({
       works,
@@ -278,6 +638,7 @@ router.get('/:field(circle|tag|va)s/:id/works',
       }
 
       works = normalize(works);
+      await applyLocalWorkDisplayTitles(works);
 
       res.send({
         works,

@@ -9,6 +9,7 @@ const normalize = (works, options = {}) => {
     record.circle = JSON.parse(record.circleObj);
     record.rate_count_detail = JSON.parse(record.rate_count_detail);
     record.dl_count_items = record.dl_count_items ? JSON.parse(record.dl_count_items) : [];
+    record.dlsite_languages = record.dlsite_languages ? JSON.parse(record.dlsite_languages) : [];
     record.rank = record.rank ? JSON.parse(record.rank) : null;
     record.vas = JSON.parse(record.vaObj)['vas'];
     record.tags = JSON.parse(record.tagObj)['tags'];

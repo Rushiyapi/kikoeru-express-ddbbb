@@ -71,6 +71,238 @@ const upsertAsmrOneTags = async (workId, tags = []) => {
   });
 };
 
+const ensureWorkReviewTables = async () => {
+  if (!await knex.schema.hasTable('t_external_work_review')) {
+    await knex.schema.createTable('t_external_work_review', (table) => {
+      table.string('source').notNullable();
+      table.string('source_review_id').notNullable();
+      table.integer('work_id').notNullable();
+      table.string('source_work_id');
+      table.string('language');
+      table.string('author');
+      table.integer('rating');
+      table.text('title');
+      table.text('body').notNullable();
+      table.string('posted_at');
+      table.string('source_url');
+      table.text('metadata');
+      table.timestamps(true, true);
+      table.foreign('work_id').references('id').inTable('t_work').onUpdate('CASCADE').onDelete('CASCADE');
+      table.primary(['source', 'source_review_id', 'work_id']);
+      table.index(['work_id', 'source'], 't_external_work_review_work_source_index');
+    });
+  } else {
+    const tableInfo = await knex.raw('PRAGMA table_info(t_external_work_review)');
+    const rows = Array.isArray(tableInfo) ? tableInfo : tableInfo && tableInfo[0] || [];
+    const workIdColumn = rows.find(row => row.name === 'work_id');
+
+    if (!workIdColumn || !workIdColumn.pk) {
+      await knex.transaction(async (trx) => {
+        await trx.schema.createTable('t_external_work_review_new', (table) => {
+          table.string('source').notNullable();
+          table.string('source_review_id').notNullable();
+          table.integer('work_id').notNullable();
+          table.string('source_work_id');
+          table.string('language');
+          table.string('author');
+          table.integer('rating');
+          table.text('title');
+          table.text('body').notNullable();
+          table.string('posted_at');
+          table.string('source_url');
+          table.text('metadata');
+          table.timestamps(true, true);
+          table.foreign('work_id').references('id').inTable('t_work').onUpdate('CASCADE').onDelete('CASCADE');
+          table.primary(['source', 'source_review_id', 'work_id']);
+          table.index(['work_id', 'source'], 't_external_work_review_work_source_index_new');
+        });
+        await trx.raw(`
+          INSERT OR IGNORE INTO t_external_work_review_new
+            (source, source_review_id, work_id, source_work_id, language, author, rating, title, body, posted_at, source_url, metadata, created_at, updated_at)
+          SELECT source, source_review_id, work_id, source_work_id, language, author, rating, title, body, posted_at, source_url, metadata, created_at, updated_at
+          FROM t_external_work_review
+        `);
+        await trx.schema.dropTable('t_external_work_review');
+        await trx.schema.renameTable('t_external_work_review_new', 't_external_work_review');
+        await trx.raw('DROP INDEX IF EXISTS t_external_work_review_work_source_index_new');
+        await trx.raw('CREATE INDEX IF NOT EXISTS t_external_work_review_work_source_index ON t_external_work_review (work_id, source)');
+      });
+    }
+  }
+
+  if (!await knex.schema.hasTable('t_external_work_review_translation')) {
+    await knex.schema.createTable('t_external_work_review_translation', (table) => {
+      table.string('source').notNullable();
+      table.string('source_review_id').notNullable();
+      table.string('target_language').notNullable();
+      table.text('translated_title');
+      table.text('translated_body');
+      table.string('provider');
+      table.string('model');
+      table.boolean('confirmed').notNullable().defaultTo(false);
+      table.timestamps(true, true);
+      table.primary(['source', 'source_review_id', 'target_language']);
+    });
+  }
+};
+
+const upsertExternalWorkReviews = async (workId, reviews = []) => {
+  await ensureWorkReviewTables();
+  await knex.transaction(async (trx) => {
+    for (const review of reviews) {
+      if (!review || !review.source || !review.source_review_id || !review.body) continue;
+
+      await trx.raw(
+        trx('t_external_work_review')
+          .insert({
+            source: review.source,
+            source_review_id: review.source_review_id,
+            work_id: workId,
+            source_work_id: review.source_work_id || '',
+            language: review.language || '',
+            author: review.author || '',
+            rating: review.rating,
+            title: review.title || '',
+            body: review.body,
+            posted_at: review.posted_at || '',
+            source_url: review.source_url || '',
+            metadata: JSON.stringify(review.metadata || {})
+          })
+          .toString()
+          .replace('insert', 'insert or replace')
+      );
+    }
+  });
+};
+
+const replaceExternalWorkReviews = async (workId, reviews = [], sources = ['dlsite']) => {
+  await ensureWorkReviewTables();
+  await knex.transaction(async (trx) => {
+    const sourceList = (sources || []).filter(Boolean);
+    if (sourceList.length) {
+      await trx('t_external_work_review')
+        .where('work_id', workId)
+        .whereIn('source', sourceList)
+        .del();
+    }
+
+    for (const review of reviews) {
+      if (!review || !review.source || !review.source_review_id || !review.body) continue;
+
+      await trx.raw(
+        trx('t_external_work_review')
+          .insert({
+            source: review.source,
+            source_review_id: review.source_review_id,
+            work_id: workId,
+            source_work_id: review.source_work_id || '',
+            language: review.language || '',
+            author: review.author || '',
+            rating: review.rating,
+            title: review.title || '',
+            body: review.body,
+            posted_at: review.posted_at || '',
+            source_url: review.source_url || '',
+            metadata: JSON.stringify(review.metadata || {})
+          })
+          .toString()
+          .replace('insert', 'insert or replace')
+      );
+    }
+  });
+};
+
+const getExternalWorkReviews = async (workId) => {
+  await ensureWorkReviewTables();
+  const rows = await knex('t_external_work_review')
+    .select([
+      't_external_work_review.*',
+      'translation.target_language',
+      'translation.translated_title',
+      'translation.translated_body',
+      'translation.provider',
+      'translation.model',
+      'translation.confirmed',
+      'translation.updated_at AS translated_at'
+    ])
+    .leftJoin(
+      knex('t_external_work_review_translation')
+        .select('*')
+        .where('target_language', 'zh-cn')
+        .as('translation'),
+      function joinTranslation() {
+        this.on('translation.source', '=', 't_external_work_review.source')
+          .andOn('translation.source_review_id', '=', 't_external_work_review.source_review_id');
+      }
+    )
+    .where('t_external_work_review.work_id', workId);
+
+  return rows.map((row) => {
+    const metadata = row.metadata ? JSON.parse(row.metadata) : {};
+    const translationStatus = row.translated_body ? 'translated' : 'pending';
+    return {
+      source: row.source,
+      sourceReviewId: row.source_review_id,
+      workId: row.work_id,
+      sourceWorkId: row.source_work_id,
+      language: row.language,
+      author: row.author,
+      rating: row.rating,
+      title: row.title,
+      body: row.body,
+      postedAt: row.posted_at,
+      fetchedAt: row.updated_at,
+      sourceUrl: row.source_url,
+      metadata,
+      translation: {
+        targetLanguage: row.target_language || 'zh-cn',
+        title: row.translated_title || '',
+        body: row.translated_body || '',
+        provider: row.provider || '',
+        model: row.model || '',
+        confirmed: Boolean(row.confirmed),
+        translatedAt: row.translated_at || '',
+        status: translationStatus
+      }
+    };
+  }).sort((left, right) => {
+    const leftOrder = Number.isFinite(Number(left.metadata && left.metadata.dlsite_best_order))
+      ? Number(left.metadata.dlsite_best_order)
+      : Number.MAX_SAFE_INTEGER;
+    const rightOrder = Number.isFinite(Number(right.metadata && right.metadata.dlsite_best_order))
+      ? Number(right.metadata.dlsite_best_order)
+      : Number.MAX_SAFE_INTEGER;
+
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+    return String(right.postedAt || '').localeCompare(String(left.postedAt || ''));
+  });
+};
+
+const getExternalWorkReviewState = async (workId) => {
+  const items = await getExternalWorkReviews(workId);
+  if (!items.length) {
+    return {
+      count: 0,
+      status: 'empty',
+      fetchedAt: '',
+      items
+    };
+  }
+
+  const fetchedAt = items.reduce((latest, item) => {
+    return item.fetchedAt && item.fetchedAt > latest ? item.fetchedAt : latest;
+  }, '');
+  const ageMs = fetchedAt ? Date.now() - new Date(fetchedAt).getTime() : 0;
+  const stale = ageMs > 30 * 24 * 60 * 60 * 1000;
+
+  return {
+    count: items.length,
+    status: stale ? 'stale' : 'ready',
+    fetchedAt,
+    items
+  };
+};
+
 /**
  * Takes a work metadata object and inserts it into the database.
  * @param {Object} work Work object.
@@ -95,6 +327,7 @@ const insertWorkMetadata = work => knex.transaction(trx => trx.raw(
 
       dl_count: work.dl_count,
       dl_count_items: JSON.stringify(work.dl_count_items || []),
+      dlsite_languages: JSON.stringify(work.dlsite_languages || []),
       price: work.price,
       review_count: work.review_count,
       rate_count: work.rate_count,
@@ -162,6 +395,7 @@ const updateWorkMetadata = (work, options = {}) => knex.transaction(async (trx) 
     .update({
       dl_count: work.dl_count,
       dl_count_items: JSON.stringify(work.dl_count_items || []),
+      dlsite_languages: JSON.stringify(work.dlsite_languages || []),
       price: work.price,
       review_count: work.review_count,
       rate_count: work.rate_count,
@@ -818,5 +1052,6 @@ module.exports = {
   nsfwFilter, lyricFilter,
   getWorkMemo, setWorkMemo,
   ensureAsmrOneTagIndex, upsertAsmrOneTags,
+  ensureWorkReviewTables, upsertExternalWorkReviews, replaceExternalWorkReviews, getExternalWorkReviews, getExternalWorkReviewState,
   advanceSearch,
 };
