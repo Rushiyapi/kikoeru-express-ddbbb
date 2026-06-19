@@ -1,11 +1,14 @@
 const strftime  = require('./strftime')
+const { formatID } = require('../../filesystem/utils')
 
 // Normalize API endpoints
 const normalize = (works, options = {}) => {
   works.map(record => {
+    record.rjcode = formatID(record.id);
     record.nsfw = Boolean(record.nsfw);
     record.circle = JSON.parse(record.circleObj);
     record.rate_count_detail = JSON.parse(record.rate_count_detail);
+    record.dl_count_items = record.dl_count_items ? JSON.parse(record.dl_count_items) : [];
     record.rank = record.rank ? JSON.parse(record.rank) : null;
     record.vas = JSON.parse(record.vaObj)['vas'];
     record.tags = JSON.parse(record.tagObj)['tags'];

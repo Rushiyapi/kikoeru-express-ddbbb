@@ -280,6 +280,11 @@ const toTree = (tracks, workTitle, workDir, rootFolder) => {
  * 音声文件夹对象 { relativePath: '相对路径', rootFolderName: '根文件夹别名', id: '音声ID' }
  * @param {Object} rootFolder 根文件夹对象 { name: '别名', path: '绝对路径' }
  */
+function extractRJCodeFromFolderName(folderName) {
+  const match = String(folderName).match(/RJ(\d{6,8})(?!\d)/i);
+  return match ? match[1] : null;
+}
+
 async function* getFolderList(rootFolder, current = '', depth = 0, logger = console ) { // 异步生成器函数 async function*() {}
   // 浅层遍历
   const folders = await fs.promises.readdir(path.join(rootFolder.path, current));    
@@ -291,9 +296,10 @@ async function* getFolderList(rootFolder, current = '', depth = 0, logger = cons
     try {
     // eslint-disable-next-line no-await-in-loop
       if ((await fs.promises.stat(absolutePath)).isDirectory()) { // 检查是否为文件夹
-          if (folder.match(/RJ\d+/)) { // 检查文件夹名称中是否含有RJ号
+          const rjMatch = extractRJCodeFromFolderName(folder);
+          if (rjMatch) { // 检查文件夹名称中是否含有RJ号
             // Found a work folder, don't go any deeper.
-            yield { absolutePath, relativePath, rootFolderName: rootFolder.name, id: parseInt(folder.match(/RJ(\d+)/)[1]) };
+            yield { absolutePath, relativePath, rootFolderName: rootFolder.name, id: parseInt(rjMatch, 10) };
           } else if (depth + 1 < config.scannerMaxRecursionDepth) {
             // 若文件夹名称中不含有RJ号，就进入该文件夹内部
             // Found a folder that's not a work folder, go inside if allowed.
@@ -371,6 +377,7 @@ module.exports = {
   getTrackList,
   toTree,
   getFolderList,
+  extractRJCodeFromFolderName,
   deleteCoverImageFromDisk,
   saveCoverImageToDisk,
   formatID,

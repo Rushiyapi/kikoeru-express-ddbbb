@@ -18,7 +18,8 @@ const createSchema = () => knex.schema
     table.boolean('nsfw'); // BOOLEAN 类型
     table.string('release');  // VARCHAR 类型 [贩卖日 (YYYY-MM-DD)]
 
-    table.integer('dl_count'); // INTEGER 类型 [售出数]
+    table.integer('dl_count'); // INTEGER type [total sales count]
+    table.text('dl_count_items'); // TEXT type [sales count by language edition]
     table.integer('price'); // INTEGER 类型 [价格]
     table.integer('review_count'); // INTEGER 类型 [评论数量]
     table.integer('rate_count'); // INTEGER 类型 [评价数量]
@@ -47,6 +48,22 @@ const createSchema = () => knex.schema
     table.foreign('tag_id').references('id').inTable('t_tag'); // FOREIGN KEY 外键
     table.foreign('work_id').references('id').inTable('t_work'); // FOREIGN KEY 外键
     table.primary(['tag_id', 'work_id']); // PRIMARY KEYprimary 主键
+  })
+  .createTable('t_asmrone_tag', (table) => {
+    table.integer('id').primary();
+    table.string('name').notNullable();
+    table.timestamps(true, true);
+  })
+  .createTable('r_asmrone_tag_work', (table) => {
+    table.integer('tag_id');
+    table.integer('work_id');
+    table.integer('vote_status');
+    table.integer('upvote').notNullable().defaultTo(0);
+    table.integer('downvote').notNullable().defaultTo(0);
+    table.timestamps(true, true);
+    table.foreign('tag_id').references('id').inTable('t_asmrone_tag').onUpdate('CASCADE').onDelete('CASCADE');
+    table.foreign('work_id').references('id').inTable('t_work').onUpdate('CASCADE').onDelete('CASCADE');
+    table.primary(['tag_id', 'work_id']);
   })
   .createTable('r_va_work', (table) => {
     table.string('va_id');
@@ -152,6 +169,7 @@ const createSchema = () => knex.schema
           t_work.nsfw,
           t_work.release,
           t_work.dl_count,
+          t_work.dl_count_items,
           t_work.price,
           t_work.review_count,
           t_work.rate_count,

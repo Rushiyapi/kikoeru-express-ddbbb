@@ -138,3 +138,6 @@ graph.svg
 dist/
 dist_*/
 temp/
+
+# Local self-contained runtime used by scripts/start-local.ps1
+.runtime/

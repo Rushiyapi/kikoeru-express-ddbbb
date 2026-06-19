@@ -11,6 +11,66 @@ const connEnv = process.env.KNEX_ENV || process.env.NODE_ENV || 'development';
 const conn = require('./knexfile')[connEnv]
 const knex = require('knex')(conn);
 
+const ensureAsmrOneTagIndex = async () => {
+  if (!await knex.schema.hasTable('t_asmrone_tag')) {
+    await knex.schema.createTable('t_asmrone_tag', (table) => {
+      table.integer('id').primary();
+      table.string('name').notNullable();
+      table.timestamps(true, true);
+    });
+  }
+
+  if (!await knex.schema.hasTable('r_asmrone_tag_work')) {
+    await knex.schema.createTable('r_asmrone_tag_work', (table) => {
+      table.integer('tag_id');
+      table.integer('work_id');
+      table.integer('vote_status');
+      table.integer('upvote').notNullable().defaultTo(0);
+      table.integer('downvote').notNullable().defaultTo(0);
+      table.timestamps(true, true);
+      table.foreign('tag_id').references('id').inTable('t_asmrone_tag').onUpdate('CASCADE').onDelete('CASCADE');
+      table.foreign('work_id').references('id').inTable('t_work').onUpdate('CASCADE').onDelete('CASCADE');
+      table.primary(['tag_id', 'work_id']);
+    });
+  }
+};
+
+const upsertAsmrOneTags = async (workId, tags = []) => {
+  if (!tags.length) return;
+
+  await ensureAsmrOneTagIndex();
+  await knex.transaction(async (trx) => {
+    for (const tag of tags) {
+      if (!tag || !tag.id || !tag.name) continue;
+
+      await trx.raw(
+        trx('t_asmrone_tag')
+          .insert({
+            id: tag.id,
+            name: tag.name,
+          })
+          .toString()
+          .replace('insert', 'insert or ignore')
+      );
+      await trx('t_asmrone_tag')
+        .where('id', tag.id)
+        .update({ name: tag.name });
+      await trx.raw(
+        trx('r_asmrone_tag_work')
+          .insert({
+            tag_id: tag.id,
+            work_id: workId,
+            vote_status: typeof tag.voteStatus === 'number' ? tag.voteStatus : null,
+            upvote: Number(tag.upvote || 0),
+            downvote: Number(tag.downvote || 0),
+          })
+          .toString()
+          .replace('insert', 'insert or replace')
+      );
+    }
+  });
+};
+
 /**
  * Takes a work metadata object and inserts it into the database.
  * @param {Object} work Work object.
@@ -34,6 +94,7 @@ const insertWorkMetadata = work => knex.transaction(trx => trx.raw(
       release: work.release,
 
       dl_count: work.dl_count,
+      dl_count_items: JSON.stringify(work.dl_count_items || []),
       price: work.price,
       review_count: work.review_count,
       rate_count: work.rate_count,
@@ -86,10 +147,21 @@ const insertWorkMetadata = work => knex.transaction(trx => trx.raw(
  * @param {Object} work Work object.
  */
 const updateWorkMetadata = (work, options = {}) => knex.transaction(async (trx) => {
+  options = options || {};
+  if (options.includeNSFW && !options.includeVA && !options.includeTags && !options.refreshAll) {
+    await trx('t_work')
+      .where('id', '=', work.id)
+      .update({
+        nsfw: work.nsfw
+      });
+    return;
+  }
+
   await trx('t_work')
     .where('id', '=', work.id)
     .update({
       dl_count: work.dl_count,
+      dl_count_items: JSON.stringify(work.dl_count_items || []),
       price: work.price,
       review_count: work.review_count,
       rate_count: work.rate_count,
@@ -97,6 +169,19 @@ const updateWorkMetadata = (work, options = {}) => knex.transaction(async (trx) 
       rate_count_detail: JSON.stringify(work.rate_count_detail),
       rank: work.rank ? JSON.stringify(work.rank) : null,
     });
+
+  const releaseMatch = /\d{4}-\d{2}-\d{2}/.exec(String(work.release || ''));
+  if (releaseMatch && !options.refreshAll) {
+    const currentWork = await trx('t_work')
+      .select('release')
+      .where('id', '=', work.id)
+      .first();
+    if (currentWork && !currentWork.release) {
+      await trx('t_work')
+        .where('id', '=', work.id)
+        .update({ release: releaseMatch[0] });
+    }
+  }
 
   if (options.includeVA || options.refreshAll) {
     await trx('r_va_work').where('work_id', work.id).del();
@@ -125,13 +210,16 @@ const updateWorkMetadata = (work, options = {}) => knex.transaction(async (trx) 
   }
 
   if (options.refreshAll) {
-    await trx('t_work')
-    .where('id', '=', work.id)
-    .update({
+    const refreshedStatic = {
       nsfw: work.nsfw,
       title: work.title,
-      release: work.release,
-    });
+    };
+    if (releaseMatch) {
+      refreshedStatic.release = releaseMatch[0];
+    }
+    await trx('t_work')
+    .where('id', '=', work.id)
+    .update(refreshedStatic);
   }
 });
 
@@ -450,9 +538,11 @@ const getWorksByKeyWord = ({keyword, username = 'admin'} = {}) => {
   const circleIdQuery = knex('t_circle').select('id').where('name', 'like', `%${keyword}%`);
 
   const tagIdQuery = knex('t_tag').select('id').where('name', 'like', `%${keyword}%`);
+  const asmrOneTagIdQuery = knex('t_asmrone_tag').select('id').where('name', 'like', `%${keyword}%`);
   const vaIdQuery = knex('t_va').select('id').where('name', 'like', `%${keyword}%`);
 
   const workIdQuery = knex('r_tag_work').select('work_id').where('tag_id', 'in', tagIdQuery).union([
+    knex('r_asmrone_tag_work').select('work_id').where('tag_id', 'in', asmrOneTagIdQuery),
     knex('r_va_work').select('work_id').where('va_id', 'in', vaIdQuery)
   ]);
 
@@ -727,5 +817,6 @@ module.exports = {
   createTranslateTask, getTranslateTasks, markWorkAILyricStatus,
   nsfwFilter, lyricFilter,
   getWorkMemo, setWorkMemo,
+  ensureAsmrOneTagIndex, upsertAsmrOneTags,
   advanceSearch,
 };

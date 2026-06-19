@@ -3,7 +3,15 @@ const path = require('path');
 const LimitPromise = require('limit-promise'); // 限制并发数量
 
 const axios = require('../scraper/axios.js'); // 数据请求
-const { scrapeWorkMetadataFromDLsite, scrapeWorkMetadataFromDLsiteJson, scrapeDynamicWorkMetadataFromDLsite, scrapeCoverIdForTranslatedWorkFromDLsite } = require('../scraper/dlsite');
+const {
+  scrapeStaticWorkMetadataFromDLsite,
+  scrapeStaticWorkMetadataFromDLsiteJson,
+  scrapeNSFWFromDLsite,
+  scrapeWorkMetadataFromDLsite,
+  scrapeWorkMetadataFromDLsiteJson,
+  scrapeDynamicWorkMetadataFromDLsite,
+  scrapeCoverIdForTranslatedWorkFromDLsite
+} = require('../scraper/dlsite');
 const { scrapeWorkMetadataFromAsmrOne } = require('../scraper/asmrOne');
 const db = require('../database/db');
 const { createSchema } = require('../database/schema');
@@ -180,62 +188,129 @@ function uniqueFolderListSeparate(arr) {
  * @param {string} tagLanguage 标签语言，'ja-jp', 'zh-tw' or 'zh-cn'，默认'zh-cn'
  * @param {boolean} hasLyric 当前作品是否拥有本地字幕
  */
+function isMissingMetadataValue(value) {
+  return value === undefined
+    || value === null
+    || value === ''
+    || Array.isArray(value) && value.length === 0;
+}
+
+function normalizeMetadataShape(work) {
+  if (!work) return work;
+
+  if (!work.circle && (work.circle_id || work.name)) {
+    work.circle = {
+      id: work.circle_id,
+      name: work.name
+    };
+  }
+
+  work.tags = work.tags || [];
+  work.vas = work.vas || [];
+  work.dl_count_items = work.dl_count_items || [];
+  work.rate_count_detail = work.rate_count_detail || [];
+  return work;
+}
+
+function mergeMissingMetadata(base, supplemental) {
+  if (!base) return normalizeMetadataShape(supplemental);
+  if (!supplemental) return normalizeMetadataShape(base);
+
+  normalizeMetadataShape(base);
+  normalizeMetadataShape(supplemental);
+
+  [
+    'title',
+    'release',
+    'nsfw',
+    'dl_count',
+    'price',
+    'review_count',
+    'rate_count',
+    'rate_average_2dp',
+    'rate_count_detail',
+    'rank',
+    'dl_count_items'
+  ].forEach((key) => {
+    if (isMissingMetadataValue(base[key]) && !isMissingMetadataValue(supplemental[key])) {
+      base[key] = supplemental[key];
+    }
+  });
+
+  if ((!base.circle || !base.circle.id) && supplemental.circle && supplemental.circle.id) {
+    base.circle = supplemental.circle;
+  }
+  if (!base.tags.length && supplemental.tags.length) {
+    base.tags = supplemental.tags;
+  }
+  if (!base.vas.length && supplemental.vas.length) {
+    base.vas = supplemental.vas;
+  }
+
+  return base;
+}
+
+async function scrapeAsmrOneSupplemental(id, rjcode) {
+  try {
+    return await scrapeWorkMetadataFromAsmrOne(id);
+  } catch(error) {
+    LOG.task.warn(rjcode, `AsmrOne获取补充元数据失败: ${error.message}`);
+    return null;
+  }
+}
+
 async function getMetadata(id, rootFolderName, dir, tagLanguage, hasLyric) {
   const rjcode = formatID(id); // zero-pad to 6 digits
 
-  LOG.task.info(rjcode, '从 DLSite 抓取元数据...')
-      
+  LOG.task.info(rjcode, '从 DLsite 抓取元数据...');
+
   let metadata = null;
 
   try {
-    metadata = await scrapeWorkMetadataFromDLsite(id, tagLanguage) // 抓取该音声的元数据
+    metadata = await scrapeWorkMetadataFromDLsite(id, tagLanguage);
   } catch(error) {
-    LOG.task.warn(rjcode, `DLSite获取元数据失败: ${error.message}`)
+    LOG.task.warn(rjcode, `DLsite 获取元数据失败: ${error.message}`);
   }
 
   if (metadata === null) {
     try {
-      metadata = await scrapeWorkMetadataFromAsmrOne(id, tagLanguage) // 抓取该音声的元数据
+      metadata = await scrapeWorkMetadataFromDLsiteJson(id, tagLanguage);
     } catch(error) {
-      LOG.task.warn(rjcode, `AsmrOne获取元数据失败: ${error.message}`)
+      LOG.task.warn(rjcode, `DLsite JSON API 获取元数据失败: ${error.message}`);
     }
   }
 
-  if (metadata === null) {
-    try {
-      metadata = await scrapeWorkMetadataFromDLsiteJson(id, tagLanguage) // 抓取该音声的元数据
-    } catch(error) {
-      LOG.task.warn(rjcode, `DLSite json api获取元数据失败: ${error.message}`)
-    }
-  }
+  const supplemental = await scrapeAsmrOneSupplemental(id, rjcode);
+  metadata = mergeMissingMetadata(metadata, supplemental);
 
   if (metadata === null) {
-    LOG.task.error(rjcode, `元数据获取失败`)
+    LOG.task.error(rjcode, '元数据获取失败');
     return 'failed';
   }
 
-  // 将抓取到的元数据插入到数据库
-  LOG.task.info(rjcode, '元数据抓取成功，准备添加到数据库...')
-  
+  LOG.task.info(rjcode, '元数据抓取成功，准备添加到数据库...');
+
   metadata.rootFolderName = rootFolderName;
   metadata.dir = dir;
   metadata.lyric_status = hasLyric ? "local" : "";
 
   try {
     await db.insertWorkMetadata(metadata);
+    if (supplemental && supplemental.tags && supplemental.tags.length) {
+      await db.upsertAsmrOneTags(id, supplemental.tags);
+    }
   } catch(error) {
-    LOG.task.error(rjcode, `元数据添加失败: ${error.message}`)
+    LOG.task.error(rjcode, `元数据添加失败: ${error.message}`);
     return 'failed';
   }
 
-  LOG.task.info(rjcode, '元数据成功添加到数据库.')
+  LOG.task.info(rjcode, '元数据成功添加到数据库');
   return 'added';
 };
 
 
 /**
- * 从 DLsite 下载封面图片，处理翻译作品本身没有封面的情况，并保存到 Images 文件夹，
- * 返回一个 Promise 对象，处理结果: 'added' 'failed' 'skipped' return skipped means work do not have cover in dlsite by default
+ * 从 DLsite 下载封面图片，兼容部分翻译作品复用原作封面的情况。
  * @param {number} id work id
  * @param {Array} types img types: ['main', 'sam', 'sam@2x', 'sam@3x', '240x240', '360x360']
  */
@@ -290,16 +365,35 @@ async function getCoverImage(cover_for_id, cover_from_id, types) {
       const imageRes = await axios.retryGet(url, { responseType: "stream", retry: {} });
       await saveCoverImageToDisk(imageRes.data, cover_for_rjcode, type);
       LOG.task.info(cover_for_rjcode, `封面 RJ${rjcode}_img_${type}.jpg 下载成功.`);
-      return 'added';
+      return { type, result: 'added' };
     } catch(err) {
       LOG.task.warn(cover_for_rjcode, `在下载封面 RJ${rjcode}_img_${type}.jpg 过程中出错: ${err.message}`);
-      return 'failed';
+      return { type, result: 'failed' };
     }
-  }))
+  }));
 
-  return results.includes("failed") 
-      ? "failed" 
-      : "added";
+  let successfulType = results.find(item => item.result === 'added');
+  if (!successfulType) {
+    successfulType = ['main', '240x240', 'sam', '360x360']
+      .map(type => ({ type, path: path.join(config.coverFolderDir, `RJ${cover_for_rjcode}_img_${type}.jpg`) }))
+      .find(item => fs.existsSync(item.path));
+  }
+
+  if (!successfulType) return 'failed';
+
+  results
+    .filter(item => item.result === 'failed')
+    .forEach((item) => {
+      const sourcePath = path.join(config.coverFolderDir, `RJ${cover_for_rjcode}_img_${successfulType.type}.jpg`);
+      const targetPath = path.join(config.coverFolderDir, `RJ${cover_for_rjcode}_img_${item.type}.jpg`);
+
+      if (!fs.existsSync(targetPath) && fs.existsSync(sourcePath)) {
+        fs.copyFileSync(sourcePath, targetPath);
+        LOG.task.info(cover_for_rjcode, `使用 ${successfulType.type} 封面补齐 ${item.type} 封面.`);
+      }
+    });
+
+  return 'added';
 };
 
 /**
@@ -614,8 +708,13 @@ async function performScan() {
  * @param {options = {}} options includeVA, includeTags
  */
 async function updateMetadata(id, options = {}) {
+  options = options || {};
   let scrapeProcessor = () => scrapeDynamicWorkMetadataFromDLsite(id);
-  if (options.includeVA || options.includeTags || options.includeNSFW || options.refreshAll) {
+  if (options.includeNSFW && !options.includeVA && !options.includeTags && !options.refreshAll) {
+    scrapeProcessor = () => scrapeNSFWFromDLsite(id, config.tagLanguage)
+      .catch(() => scrapeStaticWorkMetadataFromDLsite(id, config.tagLanguage))
+      .catch(() => scrapeStaticWorkMetadataFromDLsiteJson(id, config.tagLanguage));
+  } else if (options.includeVA || options.includeTags || options.refreshAll) {
     // static + dynamic
     scrapeProcessor = () => scrapeWorkMetadataFromDLsite(id, config.tagLanguage);
   }
@@ -624,12 +723,18 @@ async function updateMetadata(id, options = {}) {
   LOG.task.add(rjcode); // LOG.task.add only accepts a string
 
   try {
-    const metadata = await scrapeProcessor() // 抓取该音声的元数据
+    let metadata = await scrapeProcessor() // 抓取该音声的元数据
     // 将抓取到的元数据插入到数据库
     LOG.task.log(rjcode, `元数据抓取成功，准备更新元数据...`)
     metadata.id = id;
+    const supplemental = await scrapeAsmrOneSupplemental(id, rjcode);
+    metadata = mergeMissingMetadata(metadata, supplemental);
+    metadata.id = id;
 
     await db.updateWorkMetadata(metadata, options)
+    if (supplemental && supplemental.tags && supplemental.tags.length) {
+      await db.upsertAsmrOneTags(id, supplemental.tags);
+    }
     LOG.task.log(rjcode, `元数据更新成功`)
     return 'updated';
   } catch(err) {

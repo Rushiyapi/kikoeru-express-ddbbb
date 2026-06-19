@@ -5,6 +5,212 @@ const { nameToUUID, hasLetter } = require('./utils');
 const { scrapeWorkMetadataFromHVDB } = require('./hvdb');
 const { formatID } = require('../filesystem/utils');
 
+const extractRJIds = text => {
+  const ids = [];
+  const regexp = /RJ(\d{6,8})(?!\d)/ig;
+  let match;
+
+  while ((match = regexp.exec(String(text || ''))) !== null) {
+    ids.push(match[1]);
+  }
+
+  return ids;
+};
+
+const unique = list => Array.from(new Set(list));
+
+const toNumber = value => {
+  if (value === null || value === undefined || value === '') return 0;
+  return Number(String(value).replace(/,/g, '')) || 0;
+};
+
+const normalizeDlCountItems = items => (items || []).map(item => ({
+  workno: item.workno,
+  label: item.display_label || item.label || item.lang || item.workno,
+  lang: item.lang,
+  dl_count: toNumber(item.dl_count)
+})).filter(item => item.workno || item.label);
+
+const requestDynamicWorkMap = rjcodes => {
+  const productIds = rjcodes.map(rjcode => `RJ${rjcode}`).join(',');
+  const url = `https://www.dlsite.com/maniax-touch/product/info/ajax?product_id=${productIds}`;
+  return axios.retryGet(url, { retry: {} }).then(response => response.data || {});
+};
+
+const scrapeLanguageEditionsFromDLsiteJson = (rjcode, language = 'zh-cn') => {
+  const url = `https://www.dlsite.com/maniax/api/=/product.json?workno=RJ${rjcode}`;
+  return axios.retryGet(url, {
+    retry: {},
+    headers: { "cookie": `locale=${language}` }
+  })
+    .then(response => response.data && response.data[0])
+    .then(data => ({
+      editions: data && data.language_editions ? data.language_editions : [],
+      translationInfo: data && data.translation_info ? data.translation_info : {}
+    }));
+};
+
+const applyRatingFallback = (work, data) => {
+  if (!data) return;
+  if (work.rate_average_2dp && work.rate_count) return;
+
+  if (!work.rate_average_2dp && data.rate_average_2dp) {
+    work.rate_average_2dp = data.rate_average_2dp;
+  }
+  if (!work.rate_count && data.rate_count) {
+    work.rate_count = data.rate_count;
+  }
+  if ((!work.rate_count_detail || !work.rate_count_detail.length) && data.rate_count_detail) {
+    work.rate_count_detail = data.rate_count_detail;
+  }
+  if (!work.review_count && data.review_count) {
+    work.review_count = data.review_count;
+  }
+};
+
+const enrichDynamicMetadataWithLanguageEditions = async (work, rjcode, data) => {
+  const needsLanguageCounts = !work.dl_count_items.length;
+  const needsRatingFallback = !work.rate_average_2dp || !work.rate_count;
+  if (!needsLanguageCounts && !needsRatingFallback) return work;
+
+  const editionInfo = await scrapeLanguageEditionsFromDLsiteJson(rjcode);
+  const editions = editionInfo.editions || [];
+  if (!editions.length) return work;
+
+  const editionRjcodes = editions
+    .map(edition => String(edition.workno || '').replace(/^RJ/i, ''))
+    .filter(Boolean);
+  const dynamicMap = await requestDynamicWorkMap(editionRjcodes);
+
+  if (needsLanguageCounts) {
+    work.dl_count_items = editions.map(edition => {
+      const editionData = dynamicMap[edition.workno] || {};
+      return {
+        workno: edition.workno,
+        label: edition.display_label || edition.label || edition.lang || edition.workno,
+        lang: edition.lang,
+        dl_count: toNumber(editionData.dl_count)
+      };
+    }).filter(item => item.workno || item.label);
+
+    const total = work.dl_count_items.reduce((sum, item) => sum + toNumber(item.dl_count), 0);
+    if (total) work.dl_count = total;
+  }
+
+  const originalWorkno = editionInfo.translationInfo && editionInfo.translationInfo.original_workno;
+  const originalData = originalWorkno ? dynamicMap[originalWorkno] : null;
+  const ratedCandidates = Object.keys(dynamicMap)
+    .map(key => dynamicMap[key])
+    .filter(Boolean)
+    .filter(item => item.rate_average_2dp || item.rate_count)
+    .sort((a, b) => toNumber(b.rate_count) - toNumber(a.rate_count));
+  const fallbackData = originalData && (originalData.rate_average_2dp || originalData.rate_count)
+    ? originalData
+    : ratedCandidates[0];
+  applyRatingFallback(work, fallbackData || data);
+  if (fallbackData) {
+    work.rate_average_2dp = work.rate_average_2dp || fallbackData.rate_average_2dp || 0.0;
+    work.rate_count = work.rate_count || fallbackData.rate_count || 0;
+    work.rate_count_detail = work.rate_count_detail && work.rate_count_detail.length
+      ? work.rate_count_detail
+      : (fallbackData.rate_count_detail || []);
+    work.review_count = work.review_count || fallbackData.review_count || 0;
+  }
+  if ((!work.rate_average_2dp || !work.rate_count) && originalWorkno) {
+    const originalMap = await requestDynamicWorkMap([String(originalWorkno).replace(/^RJ/i, '')]);
+    const originalFallback = originalMap[originalWorkno];
+    applyRatingFallback(work, originalFallback);
+    if (originalFallback) {
+      work.rate_average_2dp = work.rate_average_2dp || originalFallback.rate_average_2dp || 0.0;
+      work.rate_count = work.rate_count || originalFallback.rate_count || 0;
+      work.rate_count_detail = work.rate_count_detail && work.rate_count_detail.length
+        ? work.rate_count_detail
+        : (originalFallback.rate_count_detail || []);
+      work.review_count = work.review_count || originalFallback.review_count || 0;
+    }
+  }
+  return work;
+};
+
+const isDLsiteAdultAgeRating = value => {
+  const text = String(value || '').trim().toLowerCase();
+  return text === '3'
+    || text === 'r18'
+    || text === 'r-18'
+    || text === '18禁'
+    || text === 'adult'
+    || text.indexOf('adult') !== -1
+    || /\br-?18\b/.test(text)
+    || text.indexOf('18') !== -1 && text.indexOf('禁') !== -1;
+};
+
+const extractCoverWorkIds = text => {
+  const ids = [];
+  const patterns = [
+    /\/RJ\d{6,8}\/RJ(\d{6,8})(?=[/_])/ig,
+    /RJ(\d{6,8})_img_/ig,
+  ];
+
+  patterns.forEach((regexp) => {
+    let match;
+    while ((match = regexp.exec(String(text || ''))) !== null) {
+      ids.push(match[1]);
+    }
+  });
+
+  return ids.length ? ids : extractRJIds(text);
+};
+
+const extractCoverIdsFromDLsitePage = $ => {
+  const imageRefs = [];
+  const ogImage = $('meta[property="og:image"]').attr('content');
+
+  if (ogImage) imageRefs.push(ogImage);
+
+  $('img').each((i, e) => {
+    if (!e.attribs) return;
+    ['src', 'data-src', 'srcset'].forEach((attr) => {
+      if (e.attribs[attr]) imageRefs.push(e.attribs[attr]);
+    });
+  });
+
+  return unique(imageRefs.flatMap(extractCoverWorkIds));
+};
+
+const getDLsitePageAgeRatingText = $ => {
+  const candidates = [
+    $('meta[name="rating"]').attr('content'),
+    $('title').text(),
+    $('meta[name="description"]').attr('content'),
+  ];
+
+  $('#work_outline tr').each((i, tr) => {
+    candidates.push($(tr).children('td').text());
+  });
+
+  return candidates.filter(Boolean).join(' ');
+};
+
+const scrapeNSFWFromDLsite = (id, language) => new Promise((resolve, reject) => {
+  const rjcode = formatID(id);
+  const url = `https://www.dlsite.com/maniax/work/=/product_id/RJ${rjcode}.html`;
+  const COOKIE_LOCALE = `locale=${language}`;
+
+  axios.retryGet(url, {
+    retry: {},
+    headers: { "cookie": COOKIE_LOCALE }
+  })
+    .then(response => response.data)
+    .then(async (data) => {
+      const $ = cheerio.load(data);
+      resolve({
+        id,
+        nsfw: isDLsiteAdultAgeRating(getDLsitePageAgeRatingText($))
+      });
+    })
+    .catch(reject);
+});
+
 /**
  * Scrapes static work metadata from public DLsite page HTML.
  * @param {number} id Work id.
@@ -76,7 +282,7 @@ const scrapeStaticWorkMetadataFromDLsite = (id, language) => new Promise((resolv
         .filter(function() {
           return $(this).text() === AGE_RATINGS;
         }).parent().children('td').find('span:first').text();
-      work.nsfw = R18 === '18禁';
+      work.nsfw = isDLsiteAdultAgeRating(R18);
 
       // 贩卖日 (YYYY-MM-DD)
       const release = workOutline.children('tbody').children('tr').children('th')
@@ -174,16 +380,13 @@ const scrapeStaticWorkMetadataFromDLsiteJson = (id, language) => new Promise((re
   const url = `https://www.dlsite.com/maniax/api/=/product.json?workno=RJ${rjcode}`;
 
   const work = { id, tags: [], vas: [] };
-  const COOKIE_LOCALE = `locale=${language}`
+  const COOKIE_LOCALE = `locale=${language}`;
   axios.retryGet(url, {
     retry: {},
     headers: { "cookie": COOKIE_LOCALE } // 自定义请求头
   })
     .then(response => response.data)
     .then((jsonObj) => { // 解析
-      console.warn("------------------------------------------------------------------")
-      console.log(jsonObj)
-      console.warn("------------------------------------------------------------------")
       const data = jsonObj[0];
 
       // 标题
@@ -200,10 +403,11 @@ const scrapeStaticWorkMetadataFromDLsiteJson = (id, language) => new Promise((re
       };
 
       // NSFW
-      work.nsfw = data.age_category == 3; // 3 for adult, 1 for all 全年龄, 2 for R15
+      work.nsfw = isDLsiteAdultAgeRating(data.age_category || data.age_category_string); // 3/adult for R18, 1 for all ages, 2 for R15
 
       // 贩卖日 (YYYY-MM-DD)
-      work.release = /\d{4}-\d{2}-\d{2}/.exec(data.regist_date)
+      const releaseMatch = /\d{4}-\d{2}-\d{2}/.exec(data.regist_date || '');
+      work.release = releaseMatch ? releaseMatch[0] : '';
 
       // 忽略系列，外面都没有用这个，有些作品也根本没有系列
       
@@ -269,14 +473,21 @@ const scrapeDynamicWorkMetadataFromDLsite = id => new Promise((resolve, reject) 
 
   axios.retryGet(url, { retry: {} })
     .then(response => response.data[`RJ${rjcode}`])
-    .then((data) => {
+    .then(async (data) => {
+      if (!data) {
+        throw new Error(`Couldn't parse dynamic data from DLsite response for RJ${rjcode}.`);
+      }
       const work = {};
+      work.rate_average_2dp = data.rate_average_2dp ? data.rate_average_2dp : 0.0;
       work.dl_count = data.dl_count ? data.dl_count : "0"; // 售出数
       work.rate_average_2dp = data.rate_average_2dp ? data.rate_average_2dp : 0.0; // 平均评价
       work.rate_count = data.rate_count ? data.rate_count : 0; // 评价数量
       work.rate_count_detail = data.rate_count_detail; // 评价分布明细
       work.review_count = data.review_count; // 评论数量
       work.price = data.price; // 价格
+      work.dl_count_items = normalizeDlCountItems(data.dl_count_items);
+      work.dl_count = data.dl_count_total ? toNumber(data.dl_count_total) : toNumber(data.dl_count);
+      await enrichDynamicMetadataWithLanguageEditions(work, rjcode, data);
       if (data.rank.length) {
         work.rank = data.rank; // 成绩
       }
@@ -337,32 +548,16 @@ const scrapeCoverIdForTranslatedWorkFromDLsite = (id_translated, language) => ne
   const rjcode = formatID(id_translated);
   const url = `https://www.dlsite.com/maniax/work/=/product_id/RJ${rjcode}.html`;
 
-  const work = { id_translated, tags: [], vas: [] };
-  let AGE_RATINGS, VA, GENRE, RELEASE, SERIES, COOKIE_LOCALE;
+  let COOKIE_LOCALE;
   switch(language) {
     case 'ja-jp':
       COOKIE_LOCALE = 'locale=ja-jp';
-      AGE_RATINGS = '年齢指定';
-      GENRE = 'ジャンル';
-      VA = '声優';
-      RELEASE = '販売日';
-      SERIES = 'シリーズ名';
       break;
     case 'zh-tw':
       COOKIE_LOCALE = 'locale=zh-tw';
-      AGE_RATINGS = '年齡指定';
-      GENRE = '分類';
-      VA = '聲優';
-      RELEASE = '販賣日';
-      SERIES = '系列名';
       break;
     default:
       COOKIE_LOCALE = 'locale=zh-cn';
-      AGE_RATINGS = '年龄指定';
-      GENRE = '分类';
-      VA = '声优';
-      RELEASE = '贩卖日';
-      SERIES = '系列名';
   }
 
   axios.retryGet(url, {
@@ -378,15 +573,13 @@ const scrapeCoverIdForTranslatedWorkFromDLsite = (id_translated, language) => ne
       const linked_id_list = $('.work_edition_linklist.type_trans a.work_edition_linklist_item').get()
         .map(l => l.attribs['href'])
         .filter(h => typeof h === 'string')
-        .map(h => /RJ(\d{6,8})/.exec(h))
-        .filter(r => r != null && r.length >= 2)
-        .map(r =>r[1]);
+        .flatMap(extractRJIds);
       
       let isNoImgMain = false;
 
       // 当前页面中使用到的一些图像链接id，用来判断当前作品的cover究竟来自哪一个作品
       const possible_image_id_list = $('img').get()
-        .map(e => e.attribs['srcset'])
+        .flatMap(e => e.attribs ? [e.attribs['src'], e.attribs['data-src'], e.attribs['srcset']] : [])
         .filter(h => typeof h === 'string')
         .map(h => {
           // 检查一下有没有 不包含图像的链接，一般srcset都是作品封面图，
@@ -395,20 +588,19 @@ const scrapeCoverIdForTranslatedWorkFromDLsite = (id_translated, language) => ne
             isNoImgMain = true;
           }
 
-          return /RJ(\d{6,8})[_\w\.]+$/.exec(h);
+          return extractCoverWorkIds(h);
         })
-        .filter(r => r != null && r.length >= 2)
-        .map(r => r[1])
+        .flat();
 
-      console.log("linked:", linked_id_list)
-      console.log("possible:", possible_image_id_list)
-
+      const page_cover_id_list = extractCoverIdsFromDLsitePage($);
       const hit_id_list = linked_id_list.filter(id => possible_image_id_list.includes(id));
 
       const result = {
-        coverFromId: hit_id_list.length > 0 ? hit_id_list[0] : id_translated,
+        coverFromId: page_cover_id_list.length > 0
+          ? page_cover_id_list[0]
+          : (hit_id_list.length > 0 ? hit_id_list[0] : id_translated),
         isNoImgMain,
-      }
+      };
       resolve(result);
     })
     .catch((error) => {
@@ -422,8 +614,14 @@ const scrapeCoverIdForTranslatedWorkFromDLsite = (id_translated, language) => ne
 });
 
 module.exports = {
+  scrapeStaticWorkMetadataFromDLsite,
+  scrapeStaticWorkMetadataFromDLsiteJson,
+  scrapeNSFWFromDLsite,
   scrapeWorkMetadataFromDLsite,
   scrapeWorkMetadataFromDLsiteJson,
   scrapeDynamicWorkMetadataFromDLsite,
   scrapeCoverIdForTranslatedWorkFromDLsite,
+  extractCoverIdsFromDLsitePage,
+  extractRJIds,
+  isDLsiteAdultAgeRating,
 };

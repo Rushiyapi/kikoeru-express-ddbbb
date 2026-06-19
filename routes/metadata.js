@@ -8,6 +8,7 @@ const { config } = require('../config');
 const normalize = require('./utils/normalize');
 const { isValidRequest } = require('./utils/validate');
 const { formatID, scrapeWorkMemo } = require('../filesystem/utils');
+const { scrapeWorkMetadataFromAsmrOne } = require('../scraper/asmrOne');
 
 const PAGE_SIZE = config.pageSize || 12;
 
@@ -47,6 +48,32 @@ router.get('/work/:id',
         res.send(work[0]);
       })
       .catch(err => next(err));
+  });
+
+// GET supplemental metadata from asmr.one for richer local detail-page tags.
+router.get('/work/:id/asmrone',
+  param('id').isInt(),
+  async (req, res) => {
+    if(!isValidRequest(req, res)) return;
+
+    try {
+      const metadata = await scrapeWorkMetadataFromAsmrOne(parseInt(req.params.id));
+      await db.upsertAsmrOneTags(parseInt(req.params.id), metadata.tags || []);
+      res.send({
+        id: metadata.id,
+        release: metadata.release,
+        create_date: metadata.create_date,
+        dl_count: metadata.dl_count,
+        duration: metadata.duration,
+        has_subtitle: Boolean(metadata.has_subtitle),
+        language_editions: metadata.language_editions || [],
+        other_language_editions_in_db: metadata.other_language_editions_in_db || [],
+        tags: metadata.tags || [],
+        vas: metadata.vas || []
+      });
+    } catch (err) {
+      res.status(502).send({error: '获取 asmr.one 补充信息失败'});
+    }
   });
 
 // GET track list in work folder
@@ -176,6 +203,7 @@ router.get('/search', async (req, res, next) => {
   const shuffleSeed = req.query.seed ? req.query.seed : 7;
   
   try {
+    await db.ensureAsmrOneTagIndex();
     let query = null;
     if (isAdvance) {
       // 临时测试，如果keyword是json字符串，则强制进入高级测试内容

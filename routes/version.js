@@ -27,6 +27,11 @@ router.get('/', (req, res, next) => {
     lockFileExists: updateLock.isLockFilePresent,
     lockReason: updateLock.isLockFilePresent ? lockReason : null
   }
+
+  if (!config.checkUpdate && !config.checkBetaUpdate) {
+    res.send(throttledResponse);
+    return;
+  }
   
   // GitHub API for unauthenticated: 60/hour
   if (lastGitHubCheck === null) {
