@@ -25,6 +25,40 @@ const initSocket = require('./socket');
 const { config } = require('./config');
 const api = require('./api');
 const app = express();
+const distDir = path.join(__dirname, './dist');
+const frontendOverridesDir = path.join(__dirname, './frontend-overrides');
+const frontendOverrideAssets = {
+  css: [
+    '/custom/css/custom-work-ui.css?v=20260627-front-overrides-1',
+    '/custom/css/custom-player-ui.css?v=20260627-front-overrides-1',
+  ],
+  js: [
+    '/custom/js/custom-work-ui.js?v=20260627-front-overrides-1',
+    '/custom/js/custom-player-ui.js?v=20260627-front-overrides-1',
+  ],
+};
+
+function stripLegacyFrontendOverrides(html) {
+  return html
+    .replace(/<link\b[^>]*href=["']?\/css\/custom-(?:work|player)-ui\.css[^>]*>/gi, '')
+    .replace(/<script\b[^>]*src=["']?\/js\/custom-(?:work|player)-ui\.js[^>]*><\/script>/gi, '')
+    .replace(/<link\b[^>]*href=["']?\/custom\/css\/custom-(?:work|player)-ui\.css[^>]*>/gi, '')
+    .replace(/<script\b[^>]*src=["']?\/custom\/js\/custom-(?:work|player)-ui\.js[^>]*><\/script>/gi, '');
+}
+
+function injectFrontendOverrides(html) {
+  const cleanHtml = stripLegacyFrontendOverrides(html);
+  const cssTags = frontendOverrideAssets.css
+    .map(href => `<link href="${href}" rel="stylesheet">`)
+    .join('');
+  const jsTags = frontendOverrideAssets.js
+    .map(src => `<script src="${src}"></script>`)
+    .join('');
+
+  return cleanHtml
+    .replace('</head>', `${cssTags}</head>`)
+    .replace('</body>', `${jsTags}</body>`);
+}
 
 // Initialize database if not exists 
 // Init or migrate database and config
@@ -56,6 +90,8 @@ if (process.env.NODE_ENV === 'development') {
   app.use('/media/download/VoiceWork', express.static('VoiceWork'), require('serve-index')('VoiceWork', {'icons': true}));
 }
 
+app.use('/custom', express.static(frontendOverridesDir));
+
 // connect-history-api-fallback 中间件后所有的 GET 请求都会变成 index (default: './index.html').
 app.use(history({
   // 将所有带 api 的 GET 请求都代理到 parsedUrl.path, 其实就是原来的路径
@@ -69,8 +105,19 @@ app.use(history({
 // Expose API routes
 api(app);
 
+app.get(['/', '/index.html'], (req, res, next) => {
+  fs.readFile(path.join(distDir, 'index.html'), 'utf8', (err, html) => {
+    if (err) {
+      next(err);
+      return;
+    }
+
+    res.type('html').send(injectFrontendOverrides(html));
+  });
+});
+
 // Serve WebApp routes
-app.use(express.static(path.join(__dirname, './dist')));
+app.use(express.static(distDir));
 
 // 返回错误响应
 // eslint-disable-next-line no-unused-vars
