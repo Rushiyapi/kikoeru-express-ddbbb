@@ -151,6 +151,34 @@ function getReviewCacheTargetCount(reviewCount, limit = DEFAULT_REVIEW_CACHE_LIM
   return Math.max(0, Math.min(count, max));
 }
 
+function withReviewCacheAttemptMetadata(reviews, targetCount) {
+  const actualCount = Array.isArray(reviews) ? reviews.length : 0;
+  const target = toInt(targetCount, 0);
+  const checkedAt = new Date().toISOString();
+
+  return (reviews || []).map(review => Object.assign({}, review, {
+    metadata: Object.assign({}, review.metadata || {}, {
+      cache_target_count: target,
+      cache_actual_count: actualCount,
+      cache_incomplete: target > 0 && actualCount > 0 && actualCount < target,
+      cache_checked_at: checkedAt
+    })
+  }));
+}
+
+function isConfirmedShortReviewCache(items, targetCount) {
+  const actualCount = Array.isArray(items) ? items.length : 0;
+  const target = toInt(targetCount, 0);
+  if (target <= 0 || actualCount <= 0 || actualCount >= target) return false;
+
+  return items.some((item) => {
+    const metadata = item && item.metadata || {};
+    return metadata.cache_incomplete === true
+      && toInt(metadata.cache_target_count, 0) === target
+      && toInt(metadata.cache_actual_count, 0) === actualCount;
+  });
+}
+
 async function resolveDlsiteReviewWorknos(workId) {
   const initialWorkno = normalizeWorkno(`RJ${formatID(workId)}`);
   const worknos = new Map();
@@ -370,6 +398,8 @@ module.exports = {
   resolveDlsiteReviewWorknos,
   resolveDlsiteReviewWorknosForExpectedCount,
   getReviewCacheTargetCount,
+  withReviewCacheAttemptMetadata,
+  isConfirmedShortReviewCache,
   isReviewTextLikelyChinese,
   DEFAULT_REVIEW_CACHE_LIMIT,
   DLSITE_REVIEW_SOURCE

@@ -1272,9 +1272,13 @@
 
   function getReviewCount(reviews, metadata) {
     var cachedCount = Number(reviews && reviews.count || 0);
+    var effectiveCount = Number(reviews && reviews.effectiveReviewCount || 0);
     var metadataCount = Number(metadata && metadata.review_count || 0);
     cachedCount = Number.isFinite(cachedCount) ? cachedCount : 0;
+    effectiveCount = Number.isFinite(effectiveCount) ? effectiveCount : 0;
     metadataCount = Number.isFinite(metadataCount) ? metadataCount : 0;
+    if (reviews && reviews.shortCacheConfirmed && cachedCount > 0) return cachedCount;
+    if (effectiveCount > 0) return effectiveCount;
     return Math.max(cachedCount, metadataCount);
   }
 

@@ -184,9 +184,9 @@ function Ensure-Frontend {
 
   $SpaDir = Join-Path $ExtractDir 'spa'
   if (Test-Path (Join-Path $SpaDir 'index.html')) {
-    Copy-Item -LiteralPath (Join-Path $SpaDir '*') -Destination $DistDir -Recurse -Force
+    Copy-Item -Path (Join-Path $SpaDir '*') -Destination $DistDir -Recurse -Force
   } elseif (Test-Path (Join-Path $ExtractDir 'index.html')) {
-    Copy-Item -LiteralPath (Join-Path $ExtractDir '*') -Destination $DistDir -Recurse -Force
+    Copy-Item -Path (Join-Path $ExtractDir '*') -Destination $DistDir -Recurse -Force
   } else {
     throw "Frontend index.html was not found after extraction"
   }

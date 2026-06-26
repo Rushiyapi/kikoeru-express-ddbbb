@@ -2,7 +2,9 @@ const db = require('../database/db');
 const {
   scrapeWorkReviews,
   DLSITE_REVIEW_SOURCE,
-  getReviewCacheTargetCount
+  getReviewCacheTargetCount,
+  withReviewCacheAttemptMetadata,
+  isConfirmedShortReviewCache
 } = require('../scraper/workReviews');
 const { formatID } = require('./utils');
 
@@ -123,7 +125,7 @@ async function listReviewRefreshTargets() {
     })
     .orderBy('t_work.id', 'desc');
 
-  return rows
+  const candidates = rows
     .map(row => {
       const reviewCount = toNumber(row.review_count);
       return {
@@ -134,6 +136,17 @@ async function listReviewRefreshTargets() {
       };
     })
     .filter(row => row.cached_review_count !== row.target_cached_review_count);
+
+  const targets = [];
+  for (const row of candidates) {
+    if (row.cached_review_count > 0 && row.cached_review_count < row.target_cached_review_count) {
+      const reviewState = await db.getExternalWorkReviewState(row.id);
+      if (isConfirmedShortReviewCache(reviewState.items, row.target_cached_review_count)) continue;
+    }
+    targets.push(row);
+  }
+
+  return targets;
 }
 
 async function refreshOneWork(work, index, total) {
@@ -151,11 +164,16 @@ async function refreshOneWork(work, index, total) {
         limitReviews: work.target_cached_review_count
       })
       : [];
-    await db.replaceExternalWorkReviews(work.id, reviews, [DLSITE_REVIEW_SOURCE]);
+    const annotatedReviews = withReviewCacheAttemptMetadata(reviews, work.target_cached_review_count);
+    await db.replaceExternalWorkReviews(work.id, annotatedReviews, [DLSITE_REVIEW_SOURCE]);
     const nextCount = reviews.length;
-    const result = nextCount === work.target_cached_review_count ? 'updated' : 'failed';
+    const result = nextCount === work.target_cached_review_count || (nextCount > 0 && nextCount < work.target_cached_review_count)
+      ? 'updated'
+      : 'failed';
 
-    if (result === 'failed') {
+    if (nextCount > 0 && nextCount < work.target_cached_review_count) {
+      LOG.task.warn(rjcode, `抓取完成但 DLsite 实际只返回 ${nextCount} 条，少于目标缓存 ${work.target_cached_review_count} 条；已按实际可抓数量缓存。`);
+    } else if (result === 'failed') {
       LOG.task.warn(rjcode, `抓取完成但数量仍不一致：抓到 ${nextCount}，目标缓存 ${work.target_cached_review_count}，元数据赏析数 ${work.review_count}`);
     } else {
       LOG.task.info(rjcode, `赏析正文缓存完成：${nextCount} 条`);

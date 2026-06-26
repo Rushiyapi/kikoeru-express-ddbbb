@@ -3,10 +3,8 @@
 html,
 body,
 #q-app,
-.q-layout,
-.q-page-container {
+.q-layout {
   max-width: 100%;
-  overflow-x: hidden;
 }
 
 .q-page-container,

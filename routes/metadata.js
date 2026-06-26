@@ -14,7 +14,9 @@ const {
   scrapeWorkReviews,
   DLSITE_REVIEW_SOURCE,
   DEFAULT_REVIEW_CACHE_LIMIT,
-  getReviewCacheTargetCount
+  getReviewCacheTargetCount,
+  withReviewCacheAttemptMetadata,
+  isConfirmedShortReviewCache
 } = require('../scraper/workReviews');
 
 const PAGE_SIZE = config.pageSize || 12;
@@ -334,8 +336,10 @@ async function sendWorkReviews(req, res, options = {}) {
     const metadataReviewCount = Number(work && work.review_count || 0);
     const targetCachedReviewCount = getReviewCacheTargetCount(metadataReviewCount);
     let reviewState = await db.getExternalWorkReviewState(workId);
+    let shortCacheConfirmed = isConfirmedShortReviewCache(reviewState.items, targetCachedReviewCount);
     let countMismatch = Number.isFinite(metadataReviewCount)
-      && targetCachedReviewCount !== reviewState.count;
+      && targetCachedReviewCount !== reviewState.count
+      && !shortCacheConfirmed;
     const hasLegacyReviewCache = reviewState.items.some((item) => {
       return !item.metadata
         || typeof item.metadata.edition_role === 'undefined'
@@ -349,10 +353,13 @@ async function sendWorkReviews(req, res, options = {}) {
           limitReviews: targetCachedReviewCount
         })
         : [];
-      await db.replaceExternalWorkReviews(workId, reviews, [DLSITE_REVIEW_SOURCE]);
+      const annotatedReviews = withReviewCacheAttemptMetadata(reviews, targetCachedReviewCount);
+      await db.replaceExternalWorkReviews(workId, annotatedReviews, [DLSITE_REVIEW_SOURCE]);
       reviewState = await db.getExternalWorkReviewState(workId);
+      shortCacheConfirmed = isConfirmedShortReviewCache(reviewState.items, targetCachedReviewCount);
       countMismatch = Number.isFinite(metadataReviewCount)
-        && targetCachedReviewCount !== reviewState.count;
+        && targetCachedReviewCount !== reviewState.count
+        && !shortCacheConfirmed;
       if (reviewState.count === 0) {
         reviewState.status = metadataReviewCount > 0 ? 'stale' : 'empty';
       }
@@ -360,8 +367,10 @@ async function sendWorkReviews(req, res, options = {}) {
 
     reviewState.metadataReviewCount = metadataReviewCount;
     reviewState.targetCachedReviewCount = targetCachedReviewCount;
+    reviewState.effectiveReviewCount = shortCacheConfirmed ? reviewState.count : metadataReviewCount;
     reviewState.cacheLimit = DEFAULT_REVIEW_CACHE_LIMIT;
     reviewState.countMismatch = countMismatch;
+    reviewState.shortCacheConfirmed = shortCacheConfirmed;
     if (countMismatch && reviewState.status === 'ready') {
       reviewState.status = 'stale';
       reviewState.staleReason = 'review_cache_count_mismatch';
@@ -377,11 +386,15 @@ async function sendWorkReviews(req, res, options = {}) {
         .first();
       const metadataReviewCount = Number(work && work.review_count || 0);
       const targetCachedReviewCount = getReviewCacheTargetCount(metadataReviewCount);
+      const shortCacheConfirmed = isConfirmedShortReviewCache(reviewState.items, targetCachedReviewCount);
       reviewState.metadataReviewCount = metadataReviewCount;
       reviewState.targetCachedReviewCount = targetCachedReviewCount;
+      reviewState.effectiveReviewCount = shortCacheConfirmed ? reviewState.count : metadataReviewCount;
       reviewState.cacheLimit = DEFAULT_REVIEW_CACHE_LIMIT;
       reviewState.countMismatch = Number.isFinite(metadataReviewCount)
-        && targetCachedReviewCount !== reviewState.count;
+        && targetCachedReviewCount !== reviewState.count
+        && !shortCacheConfirmed;
+      reviewState.shortCacheConfirmed = shortCacheConfirmed;
       if (reviewState.count > 0) {
         reviewState.status = 'stale';
         reviewState.error = '刷新赏析失败，显示本地缓存';

@@ -4,13 +4,16 @@
   --kikoeru-player-scale: 0.8;
   width: min(calc(100vw - 36px), 420px) !important;
   max-width: calc(100vw - 36px);
-  max-height: 100vh;
-  overflow: hidden;
+  max-height: min(720px, calc((100vh - 104px) / var(--kikoeru-player-scale)));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-radius: 0 !important;
   background: #f8f6f5 !important;
   box-shadow: 0 8px 26px rgba(0, 0, 0, 0.18) !important;
   transform: scale(var(--kikoeru-player-scale)) !important;
   transform-origin: right bottom;
+  scrollbar-gutter: stable;
 }
 
 .kikoeru-player-handle {
@@ -729,6 +732,31 @@
   .audio-player.kikoeru-asmr-player {
     margin: 0 18px 18px 0 !important;
     border-radius: 4px !important;
+  }
+}
+
+@media (max-height: 820px) and (min-width: 600px) {
+  .audio-player.kikoeru-asmr-player {
+    --kikoeru-player-scale: 0.72;
+    max-height: min(650px, calc((100vh - 88px) / var(--kikoeru-player-scale)));
+  }
+
+  .audio-player.kikoeru-asmr-player .albumart {
+    margin-bottom: 14px;
+  }
+
+  .audio-player.kikoeru-asmr-player > .q-item.text-center {
+    padding-bottom: 12px !important;
+  }
+
+  .kikoeru-asmr-controls {
+    height: 58px;
+    margin-bottom: 6px;
+  }
+
+  .kikoeru-asmr-volume {
+    height: 34px;
+    margin-bottom: 4px;
   }
 }
 

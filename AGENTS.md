@@ -201,6 +201,7 @@ npm start
 
 - 只修改 `dist/` 内 HTML/CSS/JS/图片时，通常刷新浏览器即可看到效果。
 - 修改 `app.js`、`routes/`、`database/`、`filesystem/`、`scraper/` 等后端代码后，当前后台服务不会自动生效，必须重启 Node 进程。
+- 当 Codex 拉取代码或修改文件后发现需要重启服务才能生效，并且当前 Kikoeru 服务正在运行时，应默认直接执行 `.\stop-kikoeru.cmd` 和 `.\start-kikoeru.cmd` 完成重启，再验证 `http://127.0.0.1:8888/api/health` 返回 `OK`；不要只提醒用户手动重启。
 - 修改 `package.json`、`package-lock.json` 或依赖相关内容后，需要重新安装依赖并重启服务。
 - 修改数据库 schema、迁移、扫描逻辑或配置默认值后，需要说明是否还要执行迁移、扫描、更新或重新生成配置。
 - 每次汇报修改时，必须明确说明“刷新浏览器即可”或“需要重启/重新构建/重新安装/重新扫描/重新更新”。
