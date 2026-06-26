@@ -1,0 +1,499 @@
+{
+  "version": 1,
+  "description": "Centralized local subtitle and title display metadata for Kikoeru. Display titles do not rename audio files.",
+  "works": {
+    "RJ01562443": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "subtitleStatus": {
+        "textSource": "official_zh",
+        "timingSource": "ai_aligned",
+        "reviewStatus": "raw"
+      },
+      "workTitle": {
+        "displayTitle": "倒贴同居辣妹：满脑子都是达令的 JK 莉绪，回老家也要下流诱惑一整周",
+        "titleSource": "ai_translation"
+      },
+      "tracks": {
+        "■05_購入特典『ループ音源』/耳舐めループ音源.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "购入特典：舔耳循环音源"
+        },
+        "01.お兄ちゃんの実家に押しかけ帰省だよ…♡.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "01. 莉绪要直接跑到哥哥老家陪你返乡喽…♡"
+        },
+        "02.むちむちおっぱいをむぎゅ～っ♡私の耳舐め手コキでいっぱい出してね…♡.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "02. 把软乎乎的大胸紧紧压上来♡ 用舔耳手交让你射个够…♡"
+        },
+        "03.布団の中でお兄ちゃんの朝勃ちおちんぽを食べちゃうよ…♡.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "03. 在被窝里吃掉哥哥晨勃的肉棒…♡"
+        },
+        "04.暇つぶしにお兄ちゃんのおちんぽを足でシコシコしてあげるね…♡.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "04. 拿哥哥的肉棒打发时间，用脚帮你套弄…♡"
+        },
+        "05.お兄ちゃんのためにお風呂で乳首責め手コキで癒してあげるね…♡.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "05. 在浴室里为哥哥乳首挑逗手交，好好治愈你…♡"
+        },
+        "06.ムラムラが止まらない私と一緒にベロチューオナニーしよ…♡.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "06. 和欲火停不下来的我一起舌吻自慰吧…♡"
+        },
+        "07.ムリムリ♡絶対バレちゃうよ♡人がいるのに無理やりエッチだなんて…♡.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "07. 不行不行♡ 绝对会被发现的♡ 明明有人还硬要做…♡"
+        },
+        "08.ごめんなしゃいごめんなしゃいっ♡お尻ぺんぺんエッチで分からせられちゃう…っ♡.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "08. 对不起对不起♡ 被打屁股性爱教训到服气了…♡"
+        },
+        "09.だいしゅきなお兄ちゃんとの両思いえっち♡種付けプロポーズされながらイク…っ♡.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "09. 和最爱的哥哥两情相悦的性爱♡ 种付位做爱，一边高潮一边求婚…♡"
+        },
+        "10.これからもずっとずっと大好きだよ…♡.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "10. 今后也会一直一直最喜欢你…♡"
+        },
+        "■08_おまけ『別言語(Multilingual)』/■02_簡体字(Simplified Chinese)/01. 簡中文字幕電影/01.mp4": {
+          "displayTitle": "简体中文字幕电影 01",
+          "titleSource": "ai_translation"
+        },
+        "■08_おまけ『別言語(Multilingual)』/■02_簡体字(Simplified Chinese)/01. 簡中文字幕電影/02.mp4": {
+          "displayTitle": "简体中文字幕电影 02",
+          "titleSource": "ai_translation"
+        },
+        "■08_おまけ『別言語(Multilingual)』/■02_簡体字(Simplified Chinese)/01. 簡中文字幕電影/03.mp4": {
+          "displayTitle": "简体中文字幕电影 03",
+          "titleSource": "ai_translation"
+        },
+        "■08_おまけ『別言語(Multilingual)』/■02_簡体字(Simplified Chinese)/01. 簡中文字幕電影/04.mp4": {
+          "displayTitle": "简体中文字幕电影 04",
+          "titleSource": "ai_translation"
+        },
+        "■08_おまけ『別言語(Multilingual)』/■02_簡体字(Simplified Chinese)/01. 簡中文字幕電影/05.mp4": {
+          "displayTitle": "简体中文字幕电影 05",
+          "titleSource": "ai_translation"
+        },
+        "■08_おまけ『別言語(Multilingual)』/■02_簡体字(Simplified Chinese)/01. 簡中文字幕電影/06.mp4": {
+          "displayTitle": "简体中文字幕电影 06",
+          "titleSource": "ai_translation"
+        },
+        "■08_おまけ『別言語(Multilingual)』/■02_簡体字(Simplified Chinese)/01. 簡中文字幕電影/07.mp4": {
+          "displayTitle": "简体中文字幕电影 07",
+          "titleSource": "ai_translation"
+        },
+        "■08_おまけ『別言語(Multilingual)』/■02_簡体字(Simplified Chinese)/01. 簡中文字幕電影/08.mp4": {
+          "displayTitle": "简体中文字幕电影 08",
+          "titleSource": "ai_translation"
+        },
+        "■08_おまけ『別言語(Multilingual)』/■02_簡体字(Simplified Chinese)/01. 簡中文字幕電影/09.mp4": {
+          "displayTitle": "简体中文字幕电影 09",
+          "titleSource": "ai_translation"
+        },
+        "■08_おまけ『別言語(Multilingual)』/■02_簡体字(Simplified Chinese)/01. 簡中文字幕電影/10.mp4": {
+          "displayTitle": "简体中文字幕电影 10",
+          "titleSource": "ai_translation"
+        }
+      }
+    },
+    "RJ01112220": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "tracks": {
+        "01_音源/SEあり/01_プロローグ.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "01. 序章"
+        },
+        "01_音源/SEあり/02_お布団の中 超密着ささやきカウントダウン手コキ.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "02. 被窝里超贴身耳语倒数手交"
+        },
+        "01_音源/SEあり/03_クリオナしながら どすけべフェラチオで喉奥射精.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "03. 一边阴蒂自慰，一边下流口交到深喉射精"
+        },
+        "01_音源/SEあり/04_処女おまんこを指で確かめる 相互オナニーえっち.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "04. 用手指探查处女小穴的互相自慰性爱"
+        },
+        "01_音源/SEあり/05_初めてのナマハメ騎乗位で 処女喪失えっち.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "05. 第一次无套骑乘位，处女丧失性爱"
+        },
+        "01_音源/SEあり/06_オホ声正常位えっちで リオちゃんにどスケベ中出し.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "06. 伴着哦吼浪叫的正常位，对莉绪下流中出"
+        },
+        "01_音源/SEあり/07_イキまくる名器まんこで 汚喘ぎ中出しえっち.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "07. 名器小穴高潮连连，喘着下流娇声中出做爱"
+        },
+        "01_音源/SEあり/08_エピローグ.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "08. 尾声"
+        },
+        "04_おまけ/02_おまけループ音声/01_音声/フェラ.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "附赠循环音声：口交"
+        },
+        "04_おまけ/02_おまけループ音声/01_音声/耳舐め.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "附赠循环音声：舔耳"
+        },
+        "04_おまけ/02_おまけループ音声/02_動画/フェラ.mp4": {
+          "displayTitle": "附赠循环视频：口交",
+          "titleSource": "ai_translation"
+        },
+        "04_おまけ/02_おまけループ音声/02_動画/耳舐め動画.mp4": {
+          "displayTitle": "附赠循环视频：舔耳",
+          "titleSource": "ai_translation"
+        },
+        "04_おまけ/03_プロモーション動画/00.mp4": {
+          "displayTitle": "宣传视频 00",
+          "titleSource": "ai_translation"
+        },
+        "04_おまけ/03_プロモーション動画/01.mp4": {
+          "displayTitle": "宣传视频 01",
+          "titleSource": "ai_translation"
+        },
+        "04_おまけ/03_プロモーション動画/02.mp4": {
+          "displayTitle": "宣传视频 02",
+          "titleSource": "ai_translation"
+        },
+        "04_おまけ/03_プロモーション動画/03.mp4": {
+          "displayTitle": "宣传视频 03",
+          "titleSource": "ai_translation"
+        },
+        "04_おまけ/03_プロモーション動画/04.mp4": {
+          "displayTitle": "宣传视频 04",
+          "titleSource": "ai_translation"
+        },
+        "04_おまけ/03_プロモーション動画/05.mp4": {
+          "displayTitle": "宣传视频 05",
+          "titleSource": "ai_translation"
+        },
+        "04_おまけ/03_プロモーション動画/プロモーション動画.mp4": {
+          "displayTitle": "宣传视频",
+          "titleSource": "ai_translation"
+        },
+        "05_別言語(Multilingual)/01_簡中文字/01_影像(Movie)/01.mp4": {
+          "displayTitle": "简体中文字幕影像 01",
+          "titleSource": "ai_translation"
+        },
+        "05_別言語(Multilingual)/01_簡中文字/01_影像(Movie)/02.mp4": {
+          "displayTitle": "简体中文字幕影像 02",
+          "titleSource": "ai_translation"
+        },
+        "05_別言語(Multilingual)/01_簡中文字/01_影像(Movie)/03.mp4": {
+          "displayTitle": "简体中文字幕影像 03",
+          "titleSource": "ai_translation"
+        },
+        "05_別言語(Multilingual)/01_簡中文字/01_影像(Movie)/04.mp4": {
+          "displayTitle": "简体中文字幕影像 04",
+          "titleSource": "ai_translation"
+        },
+        "05_別言語(Multilingual)/01_簡中文字/01_影像(Movie)/05.mp4": {
+          "displayTitle": "简体中文字幕影像 05",
+          "titleSource": "ai_translation"
+        },
+        "05_別言語(Multilingual)/01_簡中文字/01_影像(Movie)/06.mp4": {
+          "displayTitle": "简体中文字幕影像 06",
+          "titleSource": "ai_translation"
+        },
+        "05_別言語(Multilingual)/01_簡中文字/01_影像(Movie)/07.mp4": {
+          "displayTitle": "简体中文字幕影像 07",
+          "titleSource": "ai_translation"
+        },
+        "05_別言語(Multilingual)/01_簡中文字/01_影像(Movie)/08.mp4": {
+          "displayTitle": "简体中文字幕影像 08",
+          "titleSource": "ai_translation"
+        }
+      },
+      "workTitle": {
+        "displayTitle": "主动上门的同居女孩：与诱惑 JK 莉绪的甜蜜初恋性爱生活",
+        "titleSource": "ai_translation"
+      }
+    },
+    "RJ01413248": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "workTitle": {
+        "displayTitle": "把冷淡系店员小姐带回家后的故事 ASMR ～从店里到家里都被她榨个不停的性爱后日谈～",
+        "titleSource": "ai_translation"
+      },
+      "tracks": {
+        "Track1_店員さんからあの日の思い出囁きチンかり.wav": {
+          "displayTitle": "Track1_店员小姐低语那天的回忆，安抚勃起的小弟弟",
+          "titleSource": "ai_translation"
+        },
+        "Track2_ホテルの前に軽い性処理.wav": {
+          "displayTitle": "Track2_去酒店前先来一次轻度性处理",
+          "titleSource": "ai_translation"
+        },
+        "Track3_酔ったら甘々ハチャメチャえっち.wav": {
+          "displayTitle": "Track3_醉了之后甜蜜又乱来的性爱",
+          "titleSource": "ai_translation"
+        },
+        "Track4_えっちはお休み乳首攻め&オナホコキ.wav": {
+          "displayTitle": "Track4_正戏休息，乳头挑逗与飞机杯手交",
+          "titleSource": "ai_translation"
+        },
+        "Track5_店員さんのレイプ妄想どえっちオナニー.wav": {
+          "displayTitle": "Track5_店员小姐的强制妄想下流自慰",
+          "titleSource": "ai_translation"
+        },
+        "Track6_ローター入れっぱで頭がとろける背徳接客.wav": {
+          "displayTitle": "Track6_震动棒一直放着，脑袋融化的背德接客",
+          "titleSource": "ai_translation"
+        },
+        "Track7_嫉妬でひたすら種付けえっち.wav": {
+          "displayTitle": "Track7_因为嫉妒而不停种付性爱",
+          "titleSource": "ai_translation"
+        },
+        "Track8_オナ禁明けの結に貪られる獣えっち.wav": {
+          "displayTitle": "Track8_禁欲解除后，被结像野兽一样贪婪榨取",
+          "titleSource": "ai_translation"
+        },
+        "TrackEx_声優御子柴泉によるフリートーク.wav": {
+          "displayTitle": "TrackEx_声优御子柴泉自由谈话",
+          "titleSource": "ai_translation"
+        }
+      }
+    },
+    "RJ01188160": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "workTitle": {
+        "displayTitle": "懒洋洋做爱同居女友 ～和挚友般的青梅竹马♀互相吃醋的校园生活～",
+        "titleSource": "ai_translation"
+      },
+      "tracks": {
+        "01.同棲初日 新生活だらだら正常位.wav": {
+          "displayTitle": "01. 同居第一天，新生活里的懒洋洋正常位",
+          "titleSource": "ai_translation"
+        },
+        "02.大学からの一緒に帰宅&通話中の内緒フェラ.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "02. 大学放学后一起回家，以及通话中的秘密口交"
+        },
+        "03.ニチ朝アニメ見ながら、ぬるぬく手まんこ.wav": {
+          "displayTitle": "03. 一边看周日早晨动画，一边暖乎乎地指奸",
+          "titleSource": "ai_translation"
+        },
+        "04.サークル海合宿♪ 岩陰こっそり水着バック.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "04. 社团海边合宿♪ 礁石背后偷偷水着后入"
+        },
+        "05.深夜帰宅からの仲直り逆レ騎乗位.wav": {
+          "displayTitle": "05. 深夜回家后的和好逆推骑乘位",
+          "titleSource": "ai_translation"
+        },
+        "06.ゲームショー♪ 新作ゲームコスで対面立パコ.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "06. 游戏展♪ 穿新作游戏 Cos 面对面站立做爱"
+        },
+        "07.ガールズバニーとこっそりバキュームフェラ.wav": {
+          "displayTitle": "07. 兔女郎打扮下偷偷真空口交",
+          "titleSource": "ai_translation"
+        },
+        "08.休日遊園地デート.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "08. 假日游乐园约会"
+        },
+        "09.同棲カノジョとラブホで好き好きメス♀ハメ対面座位.wav": {
+          "displayTitle": "09. 和同居女友在爱情旅馆里，喜欢到雌堕的面对面坐位",
+          "titleSource": "ai_translation"
+        }
+      }
+    },
+    "RJ395452": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "workTitle": {
+        "displayTitle": "懒洋洋做爱女友 ～和恋爱感为零的青梅竹马♀互相较劲的性爱～",
+        "titleSource": "ai_translation"
+      },
+      "tracks": {
+        "本編(wav)/01.マウント奪い合いだらパコ 攻守逆転夕方えっち.wav": {
+          "displayTitle": "01. 互抢主导权的懒洋洋做爱，攻守逆转的傍晚性爱",
+          "titleSource": "ai_translation"
+        },
+        "本編(wav)/02.ネカフェのカップルシートで内緒のいちゃフェラ.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "02. 在网咖情侣座偷偷亲热口交"
+        },
+        "本編(wav)/03.二人でシャワー お風呂で裸のだらだら後背位.wav": {
+          "displayTitle": "03. 两人一起淋浴，浴室里裸身悠闲后入",
+          "titleSource": "ai_translation"
+        },
+        "本編(wav)/04.ほろ酔ダル絡み彼女に通話中分からせ寝バック.wav": {
+          "displayTitle": "04. 微醺女友黏人纠缠，通话中被后入教训到服",
+          "titleSource": "ai_translation"
+        },
+        "本編(wav)/05.ファミレスバイトの休憩中 裏口こっそり対面立位.wav": {
+          "displayTitle": "05. 家庭餐厅打工休息时，在后门偷偷面对面站立位",
+          "titleSource": "ai_translation"
+        },
+        "本編(wav)/06.勉強を教えてくれたご褒美 仲良し対面座位.wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "06. 辅导学习的奖励，亲密面对面坐位"
+        },
+        "本編(wav)/07-1.リョウ姉と大学合格祝いデート(非H).wav": {
+          "titleSource": "ai_translation",
+          "displayTitle": "07-1. 和凉姐的大学录取庆祝约会（非 H）"
+        },
+        "本編(wav)/07-2.好き好き＆いちゃパコ マウント正常位.wav": {
+          "displayTitle": "07-2. 满口喜欢&亲热做爱，骑坐掌控正常位",
+          "titleSource": "ai_translation"
+        }
+      }
+    },
+    "RJ305341": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "workTitle": {
+        "displayTitle": "秒堕！City Girls ～催眠攻略不了的地雷系女友优奈：男友至上主义，其实是处女，还会被 NTR……～",
+        "titleSource": "ai_translation"
+      },
+      "tracks": {
+        "即おち！_citygirl-yuna-Track01.wav": {
+          "displayTitle": "Track01_街头搭讪优奈，响指催眠让她敏感到进酒店",
+          "titleSource": "ai_translation"
+        },
+        "即おち！_citygirl-yuna-Track02.wav": {
+          "displayTitle": "Track02_酒店再会，欲求不满的优奈接受性处理调教",
+          "titleSource": "ai_translation"
+        },
+        "即おち！_citygirl-yuna-Track03.wav": {
+          "displayTitle": "Track03_男友坦白 NTR 癖，优奈一边通话一边被睡走",
+          "titleSource": "ai_translation"
+        },
+        "05_ボイスのみ（mp3限定）/4-10 即おち！_citygirl-yuna-Track01_Voice.mp3": {
+          "displayTitle": "仅人声 4-10 Track01_街头搭讪优奈，响指催眠让她敏感到进酒店",
+          "titleSource": "ai_translation"
+        },
+        "05_ボイスのみ（mp3限定）/4-11 即おち！_citygirl-yuna-Track02_Voice.mp3": {
+          "displayTitle": "仅人声 4-11 Track02_酒店再会，欲求不满的优奈接受性处理调教",
+          "titleSource": "ai_translation"
+        },
+        "05_ボイスのみ（mp3限定）/4-12 即おち！_citygirl-yuna-Track03_Voice.mp3": {
+          "displayTitle": "仅人声 4-12 Track03_男友坦白 NTR 癖，优奈一边通话一边被睡走",
+          "titleSource": "ai_translation"
+        }
+      }
+    },
+    "RJ01426842": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "workTitle": {
+        "displayTitle": "【手机实录】嚣张夏希(20)，性欲高涨中♪ ～出门在外收到的男孩子气女友原声自慰音频♪ 睡背位反击，强制录下她压低嗓音的高潮声♪～",
+        "titleSource": "ai_translation"
+      }
+    },
+    "RJ01350132": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "workTitle": {
+        "displayTitle": "抖 M 调教游戏。",
+        "titleSource": "ai_translation"
+      }
+    },
+    "RJ01281393": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "workTitle": {
+        "displayTitle": "酷娇金发人妻全裸家政妇小姐……温柔宠溺病弱的我 ASMR【KU100】",
+        "titleSource": "ai_translation"
+      }
+    },
+    "RJ01175934": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "workTitle": {
+        "displayTitle": "夏希同学绝对不会喘",
+        "titleSource": "ai_translation"
+      }
+    },
+    "RJ386259": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "workTitle": {
+        "displayTitle": "【性爱比赛】除妖巫女的臣服淫旅录 ～被刻下姐妹淫纹～",
+        "titleSource": "ai_translation"
+      }
+    },
+    "RJ394627": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "workTitle": {
+        "displayTitle": "车震・驾驶高潮 ～能射也能睡的情绪化射精～",
+        "titleSource": "ai_translation"
+      }
+    },
+    "RJ417556": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "workTitle": {
+        "displayTitle": "【调教到服】前女骑士&女剑士的要强女仆 ～双重浪叫强制侍奉～",
+        "titleSource": "ai_translation"
+      }
+    },
+    "RJ01024358": {
+      "version": 1,
+      "preserveOriginalTitle": true,
+      "separator": "｜",
+      "workTitle": {
+        "displayTitle": "【哦吼声】冷艳下流女上司的受孕中出性指导",
+        "titleSource": "ai_translation"
+      },
+      "tracks": {
+        "01_入社初日。第一次工作，第一个上司。.wav": {
+          "displayTitle": "01_入社初日。第一次工作，第一个上司。",
+          "titleSource": "ai_translation"
+        },
+        "02_入社一个月。和美女上司单独喝酒，到秘密的关系…。.wav": {
+          "displayTitle": "02_入社一个月。和美女上司单独喝酒，发展成秘密关系…",
+          "titleSource": "ai_translation"
+        },
+        "03_第一次做爱。美女上司帮忙脱处。.wav": {
+          "displayTitle": "03_第一次做爱。美女上司帮忙脱处。",
+          "titleSource": "ai_translation"
+        },
+        "04_外勤回程的车内…闻鸡鸡与口交侍奉。.wav": {
+          "displayTitle": "04_外勤回程的车内…嗅闻肉棒与口交侍奉。",
+          "titleSource": "ai_translation"
+        },
+        "05_公司内秘密相会…压住声音紧贴耳语的手淫与后入式。.wav": {
+          "displayTitle": "05_公司内秘密相会…压低声音贴耳手淫与后入。",
+          "titleSource": "ai_translation"
+        },
+        "06_一起洗澡…爱情酒店的房间里，真格的内射出轨性爱。.wav": {
+          "displayTitle": "06_一起洗澡…在爱情酒店房间里认真内射出轨做爱。",
+          "titleSource": "ai_translation"
+        },
+        "07_入社半年。两人共眠相谈的夜晚。.wav": {
+          "displayTitle": "07_入社半年。两人同床相谈的夜晚。",
+          "titleSource": "ai_translation"
+        }
+      }
+    }
+  }
+}
